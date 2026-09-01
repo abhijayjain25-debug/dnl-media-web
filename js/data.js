@@ -10,7 +10,7 @@ const DEFAULT_SETTINGS = {
     paper_name: "Delhi News Live",
     tagline: "National English Daily",
     edition_line: "METRO CITY",
-    website_line: "www.delhinewslive.in",
+    website_line: "www.delhinewslive.co.in",
     rni_line: "RNI : DELENG2016/66892",
     date_mode: "auto",
     custom_date: "",
@@ -483,12 +483,17 @@ class DataStore {
                 .maybeSingle();
 
             if (!settingsError && settingsData) {
+                const rawWebsite = settingsData.website_line;
+                const website_line = (!rawWebsite || rawWebsite === 'www.delhinewslive.in') 
+                    ? DEFAULT_SETTINGS.website_line 
+                    : rawWebsite;
+
                 const mergedSettings = {
                     ...DEFAULT_SETTINGS,
                     paper_name: settingsData.paper_name || DEFAULT_SETTINGS.paper_name,
                     tagline: settingsData.tagline || DEFAULT_SETTINGS.tagline,
                     edition_line: settingsData.edition_line || DEFAULT_SETTINGS.edition_line,
-                    website_line: settingsData.website_line || DEFAULT_SETTINGS.website_line,
+                    website_line: website_line,
                     rni_line: settingsData.rni_line || DEFAULT_SETTINGS.rni_line,
                     date_mode: settingsData.date_mode || DEFAULT_SETTINGS.date_mode,
                     custom_date: settingsData.custom_date || DEFAULT_SETTINGS.custom_date,

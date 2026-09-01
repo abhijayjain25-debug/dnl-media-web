@@ -188,7 +188,7 @@
                     <span class="sub-strip-bar"></span>
                     <span class="edition-title">${title}</span>
                     <span class="sub-strip-bar"></span>
-                    <span class="website-label">${settings.website_line || 'www.delhinewslive.in'}</span>
+                    <span class="website-label">${settings.website_line || 'www.delhinewslive.co.in'}</span>
                 </div>
             `;
         }
@@ -949,7 +949,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                     <form id="authForm" class="auth-form">
                         <div>
                             <span class="field-label">Editor Email</span>
-                            <input type="email" id="authEmail" class="input-standard" placeholder="name@delhinewslive.in" autocomplete="email" required />
+                            <input type="email" id="authEmail" class="input-standard" placeholder="name@delhinewslive.co.in" autocomplete="email" required />
                         </div>
                         <div>
                             <span class="field-label">Password</span>
