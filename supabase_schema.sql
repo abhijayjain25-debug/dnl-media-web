@@ -104,19 +104,20 @@ ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.interviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 
--- Clean up any legacy permissive policies
+-- -----------------------------------------------------------------------------
+-- ARTICLES POLICIES
+-- -----------------------------------------------------------------------------
+
+-- Drop all current and legacy policies on public.articles
 DROP POLICY IF EXISTS "Allow full access to articles" ON public.articles;
-DROP POLICY IF EXISTS "Allow full access to interviews" ON public.interviews;
-DROP POLICY IF EXISTS "Allow full access to settings" ON public.settings;
 DROP POLICY IF EXISTS "Public can read articles" ON public.articles;
 DROP POLICY IF EXISTS "Authenticated users can manage articles" ON public.articles;
 DROP POLICY IF EXISTS "Authenticated users can insert articles" ON public.articles;
 DROP POLICY IF EXISTS "Authenticated users can update articles" ON public.articles;
 DROP POLICY IF EXISTS "Authenticated users can delete articles" ON public.articles;
-
--- -----------------------------------------------------------------------------
--- ARTICLES POLICIES
--- -----------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Authenticated admin can insert articles" ON public.articles;
+DROP POLICY IF EXISTS "Authenticated admin can update articles" ON public.articles;
+DROP POLICY IF EXISTS "Authenticated admin can delete articles" ON public.articles;
 
 -- Public Read: Anonymous visitors can view articles
 CREATE POLICY "Public can read articles"
@@ -145,6 +146,9 @@ CREATE POLICY "Authenticated admin can delete articles"
 -- -----------------------------------------------------------------------------
 -- INTERVIEWS POLICIES
 -- -----------------------------------------------------------------------------
+
+-- Drop all current and legacy policies on public.interviews
+DROP POLICY IF EXISTS "Allow full access to interviews" ON public.interviews;
 DROP POLICY IF EXISTS "Public can read interviews" ON public.interviews;
 DROP POLICY IF EXISTS "Authenticated admin can insert interviews" ON public.interviews;
 DROP POLICY IF EXISTS "Authenticated admin can update interviews" ON public.interviews;
@@ -175,6 +179,9 @@ CREATE POLICY "Authenticated admin can delete interviews"
 -- -----------------------------------------------------------------------------
 -- SETTINGS POLICIES
 -- -----------------------------------------------------------------------------
+
+-- Drop all current and legacy policies on public.settings
+DROP POLICY IF EXISTS "Allow full access to settings" ON public.settings;
 DROP POLICY IF EXISTS "Public can read settings" ON public.settings;
 DROP POLICY IF EXISTS "Authenticated admin can update settings" ON public.settings;
 
@@ -197,11 +204,15 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('media', 'media', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
--- Drop existing storage policies if re-running
+-- Drop all current and legacy storage policies on storage.objects
 DROP POLICY IF EXISTS "Public can view media objects" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated admins can upload media objects" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated admins can update media objects" ON storage.objects;
 DROP POLICY IF EXISTS "Authenticated admins can delete media objects" ON storage.objects;
+DROP POLICY IF EXISTS "Public can view media" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated admins can upload media" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated admins can update media" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated admins can delete media" ON storage.objects;
 
 -- Storage Policy: Anyone can view uploaded media (public CDN URLs)
 CREATE POLICY "Public can view media objects"
@@ -229,6 +240,18 @@ CREATE POLICY "Authenticated admins can delete media objects"
 -- =============================================================================
 -- REALTIME REPLICATION (Instant multi-device broadcast)
 -- =============================================================================
-ALTER PUBLICATION supabase_realtime ADD TABLE public.articles;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.interviews;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.settings;
+DO $$
+BEGIN
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.articles;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.interviews;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.settings;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
+END $$;
