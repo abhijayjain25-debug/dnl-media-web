@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS public.articles (
     body TEXT,
     image_url TEXT,
     image_caption TEXT,
+    image_layout TEXT DEFAULT 'top',
+    is_breaking BOOLEAN DEFAULT false,
+    views INTEGER DEFAULT 0,
     author_name TEXT DEFAULT 'SYED WAJID',
     placement TEXT DEFAULT 'col3',
     sort_order INTEGER DEFAULT 0,
@@ -44,14 +47,52 @@ CREATE TABLE IF NOT EXISTS public.settings (
     edition_line TEXT DEFAULT 'METRO CITY',
     website_line TEXT DEFAULT 'www.delhinewslive.in',
     rni_line TEXT DEFAULT 'RNI : DELENG2016/66892',
+    date_mode TEXT DEFAULT 'auto',
+    custom_date TEXT DEFAULT '',
     masthead_url TEXT DEFAULT 'assets/logo.jpg',
     interviews_visible BOOLEAN DEFAULT true,
+    editor_name TEXT DEFAULT 'SYED WAJID',
+    editor_title TEXT DEFAULT 'Executive Editor',
+    editor_bio TEXT DEFAULT 'is a seasoned and veteran journalist with an experience of more than two decades. Writing with a flair and passion; crime and politics have been his forte. He has written more than 15000 pieces comprising articles, reports, features and editorials in the past 25 years.
+
+Syed Wajid popularly known as Sufi, is a PIB accredited journalist who has contributed to various media houses including The Hindu, Times of India, Hindustan Times, National Herald, Uday India, Loksatya and Face Group.
+
+He has been working as an executive editor for Delhi News Live, an English daily.
+
+Besides, he has been editing several other english magazines and periodicals as well.',
+    editor_instagram TEXT DEFAULT 'https://instagram.com',
+    editor_twitter TEXT DEFAULT 'https://twitter.com',
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- Schema Migration Helpers (if updating an existing database)
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS image_layout TEXT DEFAULT 'top';
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS is_breaking BOOLEAN DEFAULT false;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS rni_line TEXT DEFAULT 'RNI : DELENG2016/66892';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS date_mode TEXT DEFAULT 'auto';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS custom_date TEXT DEFAULT '';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_name TEXT DEFAULT 'SYED WAJID';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_title TEXT DEFAULT 'Executive Editor';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_bio TEXT DEFAULT 'is a seasoned and veteran journalist with an experience of more than two decades. Writing with a flair and passion; crime and politics have been his forte. He has written more than 15000 pieces comprising articles, reports, features and editorials in the past 25 years.
+
+Syed Wajid popularly known as Sufi, is a PIB accredited journalist who has contributed to various media houses including The Hindu, Times of India, Hindustan Times, National Herald, Uday India, Loksatya and Face Group.
+
+He has been working as an executive editor for Delhi News Live, an English daily.
+
+Besides, he has been editing several other english magazines and periodicals as well.';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_instagram TEXT DEFAULT 'https://instagram.com';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_twitter TEXT DEFAULT 'https://twitter.com';
+
 -- Insert Default Settings Row if not exists
-INSERT INTO public.settings (id, paper_name, tagline, edition_line, website_line, rni_line, masthead_url, interviews_visible)
-VALUES (1, 'Delhi News Live', 'National English Daily', 'METRO CITY', 'www.delhinewslive.in', 'RNI : DELENG2016/66892', 'assets/logo.jpg', true)
+INSERT INTO public.settings (id, paper_name, tagline, edition_line, website_line, rni_line, date_mode, custom_date, masthead_url, interviews_visible, editor_name, editor_title, editor_bio, editor_instagram, editor_twitter)
+VALUES (1, 'Delhi News Live', 'National English Daily', 'METRO CITY', 'www.delhinewslive.in', 'RNI : DELENG2016/66892', 'auto', '', 'assets/logo.jpg', true, 'SYED WAJID', 'Executive Editor', 'is a seasoned and veteran journalist with an experience of more than two decades. Writing with a flair and passion; crime and politics have been his forte. He has written more than 15000 pieces comprising articles, reports, features and editorials in the past 25 years.
+
+Syed Wajid popularly known as Sufi, is a PIB accredited journalist who has contributed to various media houses including The Hindu, Times of India, Hindustan Times, National Herald, Uday India, Loksatya and Face Group.
+
+He has been working as an executive editor for Delhi News Live, an English daily.
+
+Besides, he has been editing several other english magazines and periodicals as well.', 'https://instagram.com', 'https://twitter.com')
 ON CONFLICT (id) DO NOTHING;
 
 -- =============================================================================

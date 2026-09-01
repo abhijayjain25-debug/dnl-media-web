@@ -12,7 +12,20 @@ const DEFAULT_SETTINGS = {
     edition_line: "METRO CITY",
     website_line: "www.delhinewslive.in",
     rni_line: "RNI : DELENG2016/66892",
-    masthead_url: "assets/logo.jpg"
+    date_mode: "auto",
+    custom_date: "",
+    masthead_url: "assets/logo.jpg",
+    editor_name: "SYED WAJID",
+    editor_title: "Executive Editor",
+    editor_bio: `is a seasoned and veteran journalist with an experience of more than two decades. Writing with a flair and passion; crime and politics have been his forte. He has written more than 15000 pieces comprising articles, reports, features and editorials in the past 25 years.
+
+Syed Wajid popularly known as Sufi, is a PIB accredited journalist who has contributed to various media houses including The Hindu, Times of India, Hindustan Times, National Herald, Uday India, Loksatya and Face Group.
+
+He has been working as an executive editor for Delhi News Live, an English daily.
+
+Besides, he has been editing several other english magazines and periodicals as well.`,
+    editor_instagram: "https://instagram.com",
+    editor_twitter: "https://twitter.com"
 };
 
 /**
@@ -60,6 +73,9 @@ Unlike conventional media, social media emerged as the principal force that tran
 The campaign's success owes much to activists including Abhijeet Dipke, Neha Bora, Sourav Das and student organisations such as AISA and SFI in particular from JNU, who remained committed from the outset. But even after securing a major concession, the larger fight for accountability and democratic rights is far from over. As supporters celebrate this milestone, they also recognise that the road ahead remains long and bumpy and for many, Delhi is only the beginning of a much larger democratic journey.`,
         image_url: "assets/main.jpg",
         image_caption: "Protesters raising slogans and waving the Indian flag at Jantar Mantar",
+        image_layout: "top",
+        is_breaking: true,
+        views: 1420,
         author_name: "SYED WAJID",
         placement: "lead",
         sort_order: 0,
@@ -85,6 +101,8 @@ For weeks, hashtags outpaced prime-time television debates. Campus youth coordin
 Unlike conventional party-led rallies where cadres are bused in from peripheral districts, this mobilization was spontaneous, self-funded, and distinctly non-partisan. It challenged stereotypes of young people as politically indifferent and proved that creativity can be as powerful as confrontation. Above all, the protest signalled that the language, strategy and platforms of Indian politics are undergoing a profound transition and transformation.`,
         image_url: "assets/center.jpg",
         image_caption: "A young protester holding the national flag at the historic mobilization",
+        image_layout: "left",
+        views: 940,
         author_name: "SYED WAJID",
         placement: "front_secondary",
         sort_order: 1,
@@ -108,6 +126,8 @@ As the dust settles over central Delhi, prominent opposition figures have begun 
 When a movement arises from authentic public grievance—unblemished by party tickets or backroom manifestos—it commands a moral clarity that no sitting government can ignore. The moment partisan interests take the steering wheel, that clarity dissipates into familiar political noise. The citizens who stood on the tarmac in the Delhi monsoon must remember why they won.`,
         image_url: "assets/pradhan.jpg",
         image_caption: "Union Education Minister Dharmendra Pradhan addressing a media conference",
+        image_layout: "right",
+        views: 620,
         author_name: "EDITORIAL BOARD",
         placement: "front_secondary",
         sort_order: 2,
@@ -133,6 +153,8 @@ Urban transit analysts estimate that the line will take over 85,000 passenger ve
 DMRC Managing Director confirmed that all Phase IV stations will incorporate solar rooftop panels and 100% wastewater recycling systems, setting a new environmental benchmark for urban transit across Asia.`,
         image_url: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800&auto=format&fit=crop&q=80",
         image_caption: "DMRC technicians reviewing underground tracks in the Golden Line tunnel",
+        image_layout: "banner",
+        views: 1250,
         author_name: "PRIYA SHARMA",
         placement: "col3",
         sort_order: 10,
@@ -468,8 +490,15 @@ class DataStore {
                     edition_line: settingsData.edition_line || DEFAULT_SETTINGS.edition_line,
                     website_line: settingsData.website_line || DEFAULT_SETTINGS.website_line,
                     rni_line: settingsData.rni_line || DEFAULT_SETTINGS.rni_line,
+                    date_mode: settingsData.date_mode || DEFAULT_SETTINGS.date_mode,
+                    custom_date: settingsData.custom_date || DEFAULT_SETTINGS.custom_date,
                     masthead_url: settingsData.masthead_url || DEFAULT_SETTINGS.masthead_url,
-                    interviews_visible: typeof settingsData.interviews_visible === 'boolean' ? settingsData.interviews_visible : true
+                    interviews_visible: typeof settingsData.interviews_visible === 'boolean' ? settingsData.interviews_visible : true,
+                    editor_name: settingsData.editor_name || DEFAULT_SETTINGS.editor_name,
+                    editor_title: settingsData.editor_title || DEFAULT_SETTINGS.editor_title,
+                    editor_bio: settingsData.editor_bio || DEFAULT_SETTINGS.editor_bio,
+                    editor_instagram: settingsData.editor_instagram || DEFAULT_SETTINGS.editor_instagram,
+                    editor_twitter: settingsData.editor_twitter || DEFAULT_SETTINGS.editor_twitter
                 };
                 localStorage.setItem(this.STORAGE_KEY_SETTINGS, JSON.stringify(mergedSettings));
                 if (typeof settingsData.interviews_visible === 'boolean') {
@@ -488,7 +517,13 @@ class DataStore {
 
             if (!articlesError && articlesData) {
                 if (articlesData.length > 0) {
-                    localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articlesData));
+                    const formatted = articlesData.map(a => ({
+                        ...a,
+                        image_layout: a.image_layout || 'top',
+                        is_breaking: !!a.is_breaking,
+                        views: parseInt(a.views, 10) || 0
+                    }));
+                    localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(formatted));
                 } else {
                     // Supabase articles table is empty -> seed initial articles to Supabase
                     console.log('🌱 Seeding initial articles to Supabase backend...');
@@ -581,22 +616,23 @@ class DataStore {
         try {
             this.supabase.auth.onAuthStateChange((event, session) => {
                 if (session) {
-                    localStorage.setItem(this.STORAGE_KEY_AUTH, JSON.stringify({
+                    const localSession = {
                         user: session.user,
                         token: session.access_token,
                         logged_in_at: new Date().toISOString()
-                    }));
+                    };
+                    localStorage.setItem(this.STORAGE_KEY_AUTH, JSON.stringify(localSession));
                 } else if (event === 'SIGNED_OUT') {
                     localStorage.removeItem(this.STORAGE_KEY_AUTH);
                 }
             });
         } catch (err) {
-            console.warn('⚠️ Auth listener setup error:', err);
+            console.warn('⚠️ Auth state listener setup notice:', err);
         }
     }
 
     /* ─────────────────────────────────────────
-     * SETTINGS
+     * SETTINGS & FURNITURE
      * ───────────────────────────────────────── */
     getSettings() {
         try {
@@ -622,8 +658,15 @@ class DataStore {
                     edition_line: updated.edition_line,
                     website_line: updated.website_line,
                     rni_line: updated.rni_line,
+                    date_mode: updated.date_mode || 'auto',
+                    custom_date: updated.custom_date || '',
                     masthead_url: updated.masthead_url,
                     interviews_visible: this.getInterviewsVisible(),
+                    editor_name: updated.editor_name || 'SYED WAJID',
+                    editor_title: updated.editor_title || 'Editor-in-Chief & Founder',
+                    editor_bio: updated.editor_bio || '',
+                    editor_instagram: updated.editor_instagram || 'https://instagram.com',
+                    editor_twitter: updated.editor_twitter || 'https://twitter.com',
                     updated_at: new Date().toISOString()
                 };
                 await this.supabase.from('settings').upsert(dbPayload, { onConflict: 'id' });
@@ -642,7 +685,12 @@ class DataStore {
         try {
             const data = localStorage.getItem(this.STORAGE_KEY_ARTICLES);
             const articles = data ? JSON.parse(data) : INITIAL_ARTICLES;
-            return articles.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+            return articles.map(a => ({
+                ...a,
+                image_layout: a.image_layout || 'top',
+                is_breaking: !!a.is_breaking,
+                views: parseInt(a.views, 10) || 0
+            })).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
         } catch (e) {
             return INITIAL_ARTICLES;
         }
@@ -661,12 +709,73 @@ class DataStore {
         return this.getPublishedArticles().filter(a => a.section && a.section.toLowerCase() === secLower);
     }
 
+    getBreakingArticle() {
+        return this.getPublishedArticles().find(a => a.is_breaking === true) || null;
+    }
+
+    async setBreakingArticle(articleId, isBreaking) {
+        const articles = this.getArticles();
+        articles.forEach(a => {
+            if (a.id === articleId) {
+                a.is_breaking = !!isBreaking;
+            } else if (isBreaking) {
+                a.is_breaking = false;
+            }
+        });
+        localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+
+        if (this.supabase) {
+            try {
+                await this.supabase
+                    .from('articles')
+                    .update({ is_breaking: !!isBreaking })
+                    .eq('id', articleId);
+
+                if (isBreaking) {
+                    await this.supabase
+                        .from('articles')
+                        .update({ is_breaking: false })
+                        .neq('id', articleId);
+                }
+            } catch (err) {
+                console.warn('⚠️ Supabase breaking status sync note:', err);
+            }
+        }
+    }
+
+    recordArticleView(articleId) {
+        if (!articleId) return;
+        const sessionKey = 'dnl_view_' + articleId;
+        if (sessionStorage.getItem(sessionKey)) return;
+        sessionStorage.setItem(sessionKey, '1');
+
+        const articles = this.getArticles();
+        const target = articles.find(a => a.id === articleId || a.slug === articleId);
+        if (!target) return;
+
+        target.views = (parseInt(target.views, 10) || 0) + 1;
+        localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+
+        if (this.supabase) {
+            this.supabase
+                .from('articles')
+                .update({ views: target.views })
+                .eq('id', target.id)
+                .then(({ error }) => {
+                    if (error) console.warn('⚠️ Supabase view count sync note:', error.message);
+                });
+        }
+    }
+
     async saveArticle(article) {
         const articles = this.getArticles();
         const slug = article.slug || this.slugify(article.headline);
         const toSave = {
             ...article,
             slug,
+            image_layout: article.image_layout || 'top',
+            is_breaking: !!article.is_breaking,
+            views: parseInt(article.views, 10) || 0,
             updated_at: new Date().toISOString()
         };
 
@@ -686,6 +795,13 @@ class DataStore {
             articles.push(toSave);
         }
 
+        // If this article is marked as breaking, unset others
+        if (toSave.is_breaking) {
+            articles.forEach(a => {
+                if (a.id !== toSave.id) a.is_breaking = false;
+            });
+        }
+
         // 1. Optimistically update local storage
         localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
 
@@ -701,6 +817,9 @@ class DataStore {
                     body: toSave.body || '',
                     image_url: toSave.image_url || '',
                     image_caption: toSave.image_caption || '',
+                    image_layout: toSave.image_layout || 'top',
+                    is_breaking: !!toSave.is_breaking,
+                    views: toSave.views || 0,
                     author_name: toSave.author_name || 'SYED WAJID',
                     placement: toSave.placement || 'col3',
                     sort_order: toSave.sort_order || 0,
@@ -717,6 +836,13 @@ class DataStore {
                     console.warn('⚠️ Supabase article save error:', error.message);
                 } else {
                     console.log('✅ Article successfully saved to Supabase:', toSave.headline);
+                }
+
+                if (toSave.is_breaking) {
+                    await this.supabase
+                        .from('articles')
+                        .update({ is_breaking: false })
+                        .neq('id', toSave.id);
                 }
             } catch (err) {
                 console.error('❌ Error saving article to Supabase:', err);
@@ -788,15 +914,23 @@ class DataStore {
     }
 
     async login(email, password) {
-        // Try Supabase Auth first
+        if (!email || !password) {
+            throw new Error('Please enter both email and password.');
+        }
+
+        // Standard Supabase Auth sign-in
         if (this.supabase && this.supabase.auth) {
             try {
                 const { data, error } = await this.supabase.auth.signInWithPassword({
-                    email: email || 'editor@delhinewslive.in',
-                    password: password || ''
+                    email: email.trim(),
+                    password: password
                 });
 
-                if (!error && data && data.session) {
+                if (error) {
+                    throw error;
+                }
+
+                if (data && data.session) {
                     const session = {
                         user: data.session.user,
                         token: data.session.access_token,
@@ -805,22 +939,14 @@ class DataStore {
                     localStorage.setItem(this.STORAGE_KEY_AUTH, JSON.stringify(session));
                     console.log('✅ Logged in via Supabase Auth as:', data.session.user.email);
                     return { success: true, session };
-                } else if (error) {
-                    console.warn('⚠️ Supabase Auth sign-in note:', error.message);
                 }
             } catch (authErr) {
-                console.warn('⚠️ Supabase Auth exception:', authErr);
+                console.warn('⚠️ Supabase Auth sign-in failed:', authErr.message || authErr);
+                throw authErr;
             }
         }
 
-        // Fallback for editor desk
-        const fallbackSession = {
-            user: { email: email || 'editor@delhinewslive.in', role: 'admin' },
-            token: 'dnl_token_' + Date.now(),
-            logged_in_at: new Date().toISOString()
-        };
-        localStorage.setItem(this.STORAGE_KEY_AUTH, JSON.stringify(fallbackSession));
-        return { success: true, session: fallbackSession };
+        throw new Error('Supabase client is not connected.');
     }
 
     async logout() {

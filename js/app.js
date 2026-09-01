@@ -26,7 +26,13 @@
         }
 
         navigate(route) {
-            window.location.hash = route === '/' ? '' : route;
+            const targetHash = route === '/' ? '' : route;
+            const currentHash = window.location.hash.replace(/^#/, '');
+            if (currentHash === targetHash) {
+                this.handleRoute();
+            } else {
+                window.location.hash = targetHash;
+            }
         }
 
         handleRoute() {
@@ -44,9 +50,55 @@
             window.scrollTo({ top: 0, behavior: 'instant' });
         }
 
-        getFormattedDate() {
+        escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        getFormattedDate(settings) {
+            settings = settings || window.DNLDataStore.getSettings();
+            if (settings && settings.date_mode === 'manual' && settings.custom_date && settings.custom_date.trim()) {
+                return settings.custom_date.trim();
+            }
             const options = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
             return 'New Delhi, ' + new Date().toLocaleDateString('en-GB', options);
+        }
+
+        renderBreakingBanner() {
+            const breaking = window.DNLDataStore.getBreakingArticle();
+            if (!breaking) return '';
+
+            const tickerText = `${breaking.headline} &nbsp;·&nbsp; ${breaking.standfirst ? breaking.standfirst + ' &nbsp;·&nbsp; ' : ''}<span class="breaking-arrow">READ FULL REPORT →</span>`;
+
+            return `
+                <div class="breaking-banner" role="alert">
+                    <div class="breaking-badge">
+                        <div class="breaking-pulse-dot"></div>
+                        <span class="breaking-label">⚡ BREAKING</span>
+                    </div>
+                    <div class="breaking-ticker-viewport">
+                        <div class="breaking-ticker-track">
+                            <div class="breaking-ticker-item">
+                                <a href="#/article/${breaking.slug}" class="breaking-headline-link">${tickerText}</a>
+                            </div>
+                            <div class="breaking-ticker-item" aria-hidden="true">
+                                <a href="#/article/${breaking.slug}" class="breaking-headline-link">${tickerText}</a>
+                            </div>
+                            <div class="breaking-ticker-item" aria-hidden="true">
+                                <a href="#/article/${breaking.slug}" class="breaking-headline-link">${tickerText}</a>
+                            </div>
+                            <div class="breaking-ticker-item" aria-hidden="true">
+                                <a href="#/article/${breaking.slug}" class="breaking-headline-link">${tickerText}</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         render() {
@@ -67,10 +119,13 @@
                 mainContent = this.renderSearchPage();
             } else if (route === '/interviews') {
                 mainContent = this.renderInterviewsPage();
-            } else if (route === '/auth') {
-                mainContent = this.renderAuthPage();
-            } else if (route === '/admin') {
-                mainContent = this.renderAdminPage();
+            } else if (route === '/admin' || route === '/auth') {
+                const session = window.DNLDataStore.getAuthSession();
+                if (!session) {
+                    mainContent = this.renderAuthPage();
+                } else {
+                    mainContent = this.renderAdminPage();
+                }
             } else {
                 mainContent = this.render404Page();
             }
@@ -78,6 +133,7 @@
             this.appRoot.innerHTML = `
                 <div class="paper-page-wrapper">
                     <main class="paper">
+                        ${this.renderBreakingBanner()}
                         ${this.renderTopMetaStrip(settings)}
                         ${this.renderMasthead(settings)}
                         ${this.renderSubMastheadStrip(settings)}
@@ -95,13 +151,17 @@
         }
 
         renderTopMetaStrip(settings) {
+            const dateStr = this.getFormattedDate(settings);
+            const taglineStr = settings.tagline || 'National English Daily';
+            const rniStr = settings.rni_line || 'RNI : DELENG2016/66892';
+
             return `
                 <div class="top-meta-strip">
-                    <span>${this.getFormattedDate()}</span>
+                    <span class="meta-date">${dateStr}</span>
                     <span class="meta-divider">|</span>
-                    <span class="font-condensed" style="letter-spacing: -0.01em;">${settings.tagline || 'National English Daily'}</span>
+                    <span class="font-condensed" style="letter-spacing: -0.01em;">${taglineStr}</span>
                     <span class="meta-divider">|</span>
-                    <span class="font-condensed">${settings.rni_line || 'RNI : DELENG2016/66892'}</span>
+                    <span class="font-condensed meta-rni">${rniStr}</span>
                 </div>
             `;
         }
@@ -159,6 +219,7 @@
          * Renders: lead banner → side-rail boxed stories → continuation rows
          * ═══════════════════════════════════════════════════════════════ */
         renderFrontPageScroll() {
+            const settings = window.DNLDataStore.getSettings();
             const articles = window.DNLDataStore.getPublishedArticles();
             const lead = articles.find(a => a.placement === 'lead') || articles[0];
             const secondary = articles.filter(a => a.placement === 'front_secondary' && a.id !== lead?.id);
@@ -174,6 +235,9 @@
             }
 
             return `
+                <!-- ── FROM THE EDITOR'S DESK (TOP SPOTLIGHT) ── -->
+                ${this.renderEditorDeskSection(settings)}
+
                 <!-- ── FRONT PAGE LEAD ── -->
                 <article class="lead-article">
                     ${lead.image_url ? `
@@ -233,6 +297,56 @@
             `;
         }
 
+        renderEditorDeskSection(settings) {
+            const name = settings.editor_name || 'SYED WAJID';
+            const title = settings.editor_title || 'Executive Editor';
+            const photoUrl = 'assets/syed_wajid.jpg';
+            const defaultBio = `is a seasoned and veteran journalist with an experience of more than two decades. Writing with a flair and passion; crime and politics have been his forte. He has written more than 15000 pieces comprising articles, reports, features and editorials in the past 25 years.
+
+Syed Wajid popularly known as Sufi, is a PIB accredited journalist who has contributed to various media houses including The Hindu, Times of India, Hindustan Times, National Herald, Uday India, Loksatya and Face Group.
+
+He has been working as an executive editor for Delhi News Live, an English daily.
+
+Besides, he has been editing several other english magazines and periodicals as well.`;
+
+            const bioRaw = settings.editor_bio || defaultBio;
+            const bioParas = bioRaw.split(/\n\n+/).filter(p => p.trim());
+            const igUrl = settings.editor_instagram || 'https://instagram.com';
+            const twUrl = settings.editor_twitter || 'https://twitter.com';
+
+            return `
+                <div class="editor-desk-section">
+                    <div class="editor-desk-header">
+                        <span class="iv-section-rule"></span>
+                        <h2 class="iv-section-title">FROM THE EDITOR'S DESK</h2>
+                        <span class="iv-section-rule"></span>
+                    </div>
+                    <div class="editor-desk-card">
+                        <div class="editor-desk-avatar">
+                            <img src="${photoUrl}" alt="${name}" loading="eager" />
+                        </div>
+                        <div class="editor-desk-info">
+                            <h3 class="editor-desk-name">${name}</h3>
+                            <p class="editor-desk-role">${title} · Delhi News Live</p>
+                            <div class="editor-desk-bio-body">
+                                ${bioParas.map(p => `<p class="editor-desk-bio-p">${p.trim().replace(/\n/g, '<br>')}</p>`).join('')}
+                            </div>
+                            <div class="editor-desk-socials">
+                                <a href="${igUrl}" target="_blank" rel="noopener noreferrer" class="editor-social-link editor-social-ig" aria-label="Syed Wajid Instagram Profile">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
+                                    Instagram
+                                </a>
+                                <a href="${twUrl}" target="_blank" rel="noopener noreferrer" class="editor-social-link editor-social-tw" aria-label="Syed Wajid Twitter Profile">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                    Twitter / X
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         /* ═══════════════════════════════════════════════════════════════
          * VIDEO CLIPPINGS — PUBLIC SECTION
          * ═══════════════════════════════════════════════════════════════ */
@@ -254,6 +368,33 @@
             return url;
         }
 
+        renderVideoMedia(clip) {
+            const rawUrl = clip.videoUrl || clip.video_url || '';
+            const embedUrl = this.normalizeVideoUrl(rawUrl);
+
+            // 1. YouTube or Vimeo Embed
+            if (embedUrl && (embedUrl.includes('youtube.com/embed/') || embedUrl.includes('player.vimeo.com/video/'))) {
+                return `<iframe src="${embedUrl}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy" title="${clip.title}"></iframe>`;
+            }
+
+            // 2. Direct / Uploaded Video (Data URL, Blob, MP4, WebM, MOV, etc.)
+            if (rawUrl) {
+                return `
+                    <video controls playsinline preload="metadata" poster="${clip.thumbnail || ''}" style="width: 100%; height: 100%; object-fit: contain; background: #000;" title="${clip.title}">
+                        <source src="${rawUrl}">
+                        Your browser does not support HTML5 video playback.
+                    </video>
+                `;
+            }
+
+            // 3. Fallback to thumbnail or placeholder
+            if (clip.thumbnail) {
+                return `<img src="${clip.thumbnail}" alt="${clip.title}" class="iv-thumb" />`;
+            }
+
+            return `<div class="iv-no-video">&#9654; No preview available</div>`;
+        }
+
         renderInterviewsSection() {
             const visible = window.DNLDataStore.getInterviewsVisible();
             const clips   = window.DNLDataStore.getInterviews();
@@ -268,29 +409,20 @@
                         <span class="iv-section-rule"></span>
                     </div>
                     <div class="iv-grid">
-                        ${clips.map(clip => {
-                            const embedUrl = this.normalizeVideoUrl(clip.videoUrl);
-                            const isEmbed = embedUrl && !embedUrl.startsWith('data:');
-                            return `
-                                <div class="iv-card">
-                                    <div class="iv-video-wrapper">
-                                        ${isEmbed
-                                            ? `<iframe src="${embedUrl}" frameborder="0" allowfullscreen loading="lazy" title="${clip.title}"></iframe>`
-                                            : (clip.thumbnail
-                                                ? `<a href="${clip.videoUrl || '#'}" target="_blank" rel="noopener"><img src="${clip.thumbnail}" alt="${clip.title}" class="iv-thumb" /></a>`
-                                                : `<div class="iv-no-video">&#9654; No preview available</div>`)
-                                        }
-                                    </div>
-                                    <div class="iv-card-body">
-                                        <p class="iv-tag">INTERVIEW</p>
-                                        <h3 class="iv-title">${clip.title}</h3>
-                                        ${clip.guest ? `<p class="iv-guest">Guest: <strong>${clip.guest}</strong></p>` : ''}
-                                        ${clip.description ? `<p class="iv-desc">${clip.description}</p>` : ''}
-                                        ${clip.date ? `<p class="iv-date">${clip.date}</p>` : ''}
-                                    </div>
+                        ${clips.map(clip => `
+                            <div class="iv-card">
+                                <div class="iv-video-wrapper">
+                                    ${this.renderVideoMedia(clip)}
                                 </div>
-                            `;
-                        }).join('')}
+                                <div class="iv-card-body">
+                                    <p class="iv-tag">INTERVIEW</p>
+                                    <h3 class="iv-title">${clip.title}</h3>
+                                    ${clip.guest ? `<p class="iv-guest">Guest: <strong>${clip.guest}</strong></p>` : ''}
+                                    ${clip.description ? `<p class="iv-desc">${clip.description}</p>` : ''}
+                                    ${clip.date ? `<p class="iv-date">${clip.date}</p>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
             `;
@@ -328,29 +460,20 @@
                         <span style="font-family: var(--font-condensed); font-size: 13px; text-transform: uppercase; color: var(--color-stone); letter-spacing: 0.14em;">${clips.length} Clips</span>
                     </div>
                     <div class="iv-grid">
-                        ${clips.map(clip => {
-                            const embedUrl = this.normalizeVideoUrl(clip.videoUrl);
-                            const isEmbed = embedUrl && !embedUrl.startsWith('data:');
-                            return `
-                                <div class="iv-card">
-                                    <div class="iv-video-wrapper">
-                                        ${isEmbed
-                                            ? `<iframe src="${embedUrl}" frameborder="0" allowfullscreen loading="lazy" title="${clip.title}"></iframe>`
-                                            : (clip.thumbnail
-                                                ? `<a href="${clip.videoUrl || '#'}" target="_blank" rel="noopener"><img src="${clip.thumbnail}" alt="${clip.title}" class="iv-thumb" /></a>`
-                                                : `<div class="iv-no-video">&#9654; No preview available</div>`)
-                                        }
-                                    </div>
-                                    <div class="iv-card-body">
-                                        <p class="iv-tag">INTERVIEW</p>
-                                        <h3 class="iv-title">${clip.title}</h3>
-                                        ${clip.guest ? `<p class="iv-guest">Guest: <strong>${clip.guest}</strong></p>` : ''}
-                                        ${clip.description ? `<p class="iv-desc">${clip.description}</p>` : ''}
-                                        ${clip.date ? `<p class="iv-date">${clip.date}</p>` : ''}
-                                    </div>
+                        ${clips.map(clip => `
+                            <div class="iv-card">
+                                <div class="iv-video-wrapper">
+                                    ${this.renderVideoMedia(clip)}
                                 </div>
-                            `;
-                        }).join('')}
+                                <div class="iv-card-body">
+                                    <p class="iv-tag">INTERVIEW</p>
+                                    <h3 class="iv-title">${clip.title}</h3>
+                                    ${clip.guest ? `<p class="iv-guest">Guest: <strong>${clip.guest}</strong></p>` : ''}
+                                    ${clip.description ? `<p class="iv-desc">${clip.description}</p>` : ''}
+                                    ${clip.date ? `<p class="iv-date">${clip.date}</p>` : ''}
+                                </div>
+                            </div>
+                        `).join('')}
                     </div>
                     <p style="margin-top: 1.5rem;"><a href="#/" class="back-link">← Return to Front Page</a></p>
                 </div>
@@ -655,11 +778,90 @@
                 `;
             }
 
+            // 1. Record page view count
+            window.DNLDataStore.recordArticleView(article.id);
+
             const blocks = window.DNLDataStore.parseBody(article.body);
+            const layout = article.image_layout || 'top';
+            const fullUrl = window.location.origin + window.location.pathname + '#/article/' + article.slug;
+            const encodedUrl = encodeURIComponent(fullUrl);
+            const encodedHeadline = encodeURIComponent(article.headline);
+
+            // 2. Related articles (3-4 from same section, most recent first)
+            const allPublished = window.DNLDataStore.getPublishedArticles();
+            let related = allPublished.filter(a => a.id !== article.id && a.section && article.section && a.section.toLowerCase() === article.section.toLowerCase());
+            if (related.length < 3) {
+                const others = allPublished.filter(a => a.id !== article.id && !related.some(r => r.id === a.id));
+                related = related.concat(others);
+            }
+            related = related.slice(0, 4);
+
+            const socialToolbarHtml = `
+                <div class="social-share-toolbar">
+                    <span class="share-label">Share Report:</span>
+                    <a href="https://api.whatsapp.com/send?text=${encodedHeadline}%20${encodedUrl}" target="_blank" rel="noopener noreferrer" class="share-btn share-btn-whatsapp" aria-label="Share on WhatsApp">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                        WhatsApp
+                    </a>
+                    <a href="https://twitter.com/intent/tweet?text=${encodedHeadline}&url=${encodedUrl}" target="_blank" rel="noopener noreferrer" class="share-btn share-btn-x" aria-label="Share on X">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                        Twitter / X
+                    </a>
+                    <a href="https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}" target="_blank" rel="noopener noreferrer" class="share-btn share-btn-fb" aria-label="Share on Facebook">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                        Facebook
+                    </a>
+                    <button type="button" class="share-btn share-btn-copy btn-copy-article-link" data-url="${fullUrl}">
+                        🔗 Copy Link
+                    </button>
+                    <span class="share-copy-toast" style="display:none;">✓ Copied!</span>
+                </div>
+            `;
+
+            // Figure element helper
+            const figureHtml = article.image_url ? `
+                <figure class="${layout === 'banner' ? 'article-hero-banner' : (layout === 'left' || layout === 'right' ? 'article-float-figure' : 'article-detail-figure')}">
+                    <img src="${article.image_url}" alt="${article.image_caption || article.headline}" loading="eager" />
+                    ${article.image_caption ? `<figcaption class="lead-caption">${article.image_caption}</figcaption>` : ''}
+                </figure>
+            ` : '';
+
+            // Body paragraphs helper
+            const bodyParagraphsHtml = blocks.map((b, i) => {
+                if (b.type === 'head') {
+                    return `<h3 class="col-head" style="font-size: 20px; margin: 1.5rem 0 0.5rem 0;">${b.text}</h3>`;
+                }
+                return `<p class="${i === 0 ? 'dropcap' : ''}">${b.text}</p>`;
+            }).join('');
+
+            // Related section HTML
+            const relatedHtml = related.length > 0 ? `
+                <section class="related-articles-section">
+                    <h2 class="related-section-title">RELATED STORIES FROM THIS DESK</h2>
+                    <div class="related-grid">
+                        ${related.map(rel => `
+                            <article class="related-card">
+                                ${rel.image_url ? `<a href="#/article/${rel.slug}"><img src="${rel.image_url}" alt="${rel.headline}" loading="lazy" /></a>` : ''}
+                                <p class="related-tag">${rel.section || 'Report'}</p>
+                                <h3 class="related-headline">
+                                    <a href="#/article/${rel.slug}">${rel.headline}</a>
+                                </h3>
+                                ${rel.author_name ? `<p class="related-byline">By ${rel.author_name}</p>` : ''}
+                            </article>
+                        `).join('')}
+                    </div>
+                </section>
+            ` : '';
 
             return `
-                <article class="article-detail-container">
-                    <p class="article-detail-tag">${article.section || 'General'}</p>
+                <article class="article-detail-container article-layout-${layout}">
+                    ${layout === 'banner' && figureHtml ? figureHtml : ''}
+
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+                        <p class="article-detail-tag">${article.section || 'General'}</p>
+                        <span class="views-count-pill">👁️ ${article.views || 0} views</span>
+                    </div>
+
                     <h1 class="article-detail-title">${article.headline}</h1>
 
                     ${article.standfirst ? `<p class="article-detail-standfirst">${article.standfirst}</p>` : ''}
@@ -668,25 +870,22 @@
                         <p class="article-detail-byline">By ${article.author_name}</p>
                     ` : ''}
 
-                    ${article.image_url ? `
-                        <figure class="article-detail-figure">
-                            <img src="${article.image_url}" alt="${article.image_caption || article.headline}" style="width: 100%; max-height: 600px; object-fit: cover;" />
-                            ${article.image_caption ? `<figcaption class="lead-caption">${article.image_caption}</figcaption>` : ''}
-                        </figure>
-                    ` : ''}
+                    ${layout === 'top' && figureHtml ? figureHtml : ''}
+
+                    ${socialToolbarHtml}
 
                     <div class="article-detail-body">
-                        ${blocks.map((b, i) => {
-                            if (b.type === 'head') {
-                                return `<h3 class="col-head" style="font-size: 20px; margin: 1.5rem 0 0.5rem 0;">${b.text}</h3>`;
-                            }
-                            return `<p class="${i === 0 ? 'dropcap' : ''}">${b.text}</p>`;
-                        }).join('')}
+                        ${(layout === 'left' || layout === 'right') && figureHtml ? figureHtml : ''}
+                        ${bodyParagraphsHtml}
                     </div>
+
+                    ${socialToolbarHtml}
 
                     <p style="margin-top: 1.5rem;">
                         <a href="#/" class="back-link">← Return to Front Page</a>
                     </p>
+
+                    ${relatedHtml}
                 </article>
             `;
         }
@@ -696,6 +895,7 @@
          * ═══════════════════════════════════════════════════════════════ */
         renderSearchPage() {
             const query = this.searchQuery.trim().toLowerCase();
+            const escapedQuery = this.escapeHtml(this.searchQuery);
             const allArticles = window.DNLDataStore.getPublishedArticles();
             const results = query ? allArticles.filter(art => {
                 const searchStr = `${art.headline} ${art.standfirst || ''} ${art.body} ${art.section}`.toLowerCase();
@@ -708,14 +908,14 @@
                     type="text"
                     id="searchInput"
                     placeholder="Type a headline, name or keyword…"
-                    value="${this.searchQuery}"
+                    value="${escapedQuery}"
                     class="search-input-field"
                     autofocus
                 />
 
                 <div class="search-results-list">
                     ${query && results.length === 0 ? `
-                        <p style="font-family: var(--font-serifhead); font-style: italic; color: var(--color-stone);">No stories match "${this.searchQuery}".</p>
+                        <p style="font-family: var(--font-serifhead); font-style: italic; color: var(--color-stone);">No stories match "${escapedQuery}".</p>
                     ` : ''}
 
                     ${results.map(art => `
@@ -744,21 +944,19 @@
             return `
                 <div class="auth-box">
                     <h1 class="auth-title">Newsroom login</h1>
-                    <p class="auth-subtitle">For editors of Delhi News Live.</p>
+                    <p class="auth-subtitle">Authorized editorial access for Delhi News Live.</p>
 
                     <form id="authForm" class="auth-form">
                         <div>
-                            <input type="email" id="authEmail" class="input-standard" placeholder="Email" value="editor@delhinewslive.in" required />
+                            <span class="field-label">Editor Email</span>
+                            <input type="email" id="authEmail" class="input-standard" placeholder="name@delhinewslive.in" autocomplete="email" required />
                         </div>
                         <div>
-                            <input type="password" id="authPassword" class="input-standard" placeholder="Password" value="newsroom2026" required minlength="6" />
+                            <span class="field-label">Password</span>
+                            <input type="password" id="authPassword" class="input-standard" placeholder="••••••••••••" autocomplete="current-password" required minlength="6" />
                         </div>
                         <button type="submit" class="btn-primary">Sign in to Newsroom</button>
                     </form>
-
-                    <div style="margin-top: 1rem; border-top: 1px dashed var(--color-rule); padding-top: 0.75rem;">
-                        <button type="button" id="quickEditorBtn" class="btn-secondary" style="width: 100%;">⚡ Quick Editor Access (1-Click Demo)</button>
-                    </div>
                 </div>
             `;
         }
@@ -769,18 +967,23 @@
         renderAdminPage() {
             const session = window.DNLDataStore.getAuthSession();
             if (!session) {
-                this.navigate('/auth');
-                return '';
+                return this.renderAuthPage();
             }
 
             const settings  = window.DNLDataStore.getSettings();
             const articles  = window.DNLDataStore.getArticles();
             const editing   = this.editingArticle;
-            const adminTab  = this.adminTab || 'stories'; // 'stories' | 'interviews' | 'settings'
+            const adminTab  = this.adminTab || 'stories'; // 'stories' | 'analytics' | 'interviews' | 'settings'
+            const currentLayout = editing ? (editing.image_layout || 'top') : 'top';
 
             return `
                 <div class="newsroom-header">
-                    <h1 class="newsroom-title">Newsroom desk</h1>
+                    <div>
+                        <h1 class="newsroom-title">Newsroom desk</h1>
+                        <p style="font-family: var(--font-condensed); font-size: 12px; color: var(--color-stone); text-transform: uppercase; letter-spacing: 0.12em; margin-top: 0.2rem;">
+                            Signed in as: <strong>${(session.user && session.user.email) || 'Editor'}</strong>
+                        </p>
+                    </div>
                     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                         <button id="btnNewStory" class="btn-primary" style="width: auto; padding: 0.45rem 1rem;">+ New story</button>
                         <button id="btnSignOut" class="btn-secondary" style="width: auto; padding: 0.45rem 1rem;">Sign out</button>
@@ -790,50 +993,27 @@
                 <!-- Admin Tabs -->
                 <div class="admin-tab-bar">
                     <button class="admin-tab-pill ${adminTab === 'stories' ? 'admin-tab-pill--active' : ''}" data-admin-tab="stories">📰 Stories</button>
+                    <button class="admin-tab-pill ${adminTab === 'analytics' ? 'admin-tab-pill--active' : ''}" data-admin-tab="analytics">📊 Readership & Analytics</button>
                     <button class="admin-tab-pill ${adminTab === 'interviews' ? 'admin-tab-pill--active' : ''}" data-admin-tab="interviews">🎥 Video Clippings</button>
                     <button class="admin-tab-pill ${adminTab === 'settings' ? 'admin-tab-pill--active' : ''}" data-admin-tab="settings">⚙️ Site Settings</button>
                 </div>
 
                 <!-- ── STORIES TAB ── -->
                 <div id="admin-panel-stories" style="${adminTab === 'stories' ? '' : 'display:none;'}">
-                    <div class="cms-grid-2" style="margin-top: 0.5rem;">
-                        <div>
-                            <span class="field-label">Paper Name</span>
-                            <input type="text" id="setting_paper_name" class="input-standard" value="${settings.paper_name || ''}" />
-                        </div>
-                        <div>
-                            <span class="field-label">Tagline</span>
-                            <input type="text" id="setting_tagline" class="input-standard" value="${settings.tagline || ''}" />
-                        </div>
-                        <div>
-                            <span class="field-label">Edition Line</span>
-                            <input type="text" id="setting_edition_line" class="input-standard" value="${settings.edition_line || ''}" />
-                        </div>
-                        <div>
-                            <span class="field-label">Website Line</span>
-                            <input type="text" id="setting_website_line" class="input-standard" value="${settings.website_line || ''}" />
-                        </div>
-                        <div>
-                            <span class="field-label">RNI Line</span>
-                            <input type="text" id="setting_rni_line" class="input-standard" value="${settings.rni_line || ''}" />
-                        </div>
-                        <div>
-                            <span class="field-label">Masthead Logo (Upload From Device)</span>
-                            <input type="file" id="setting_masthead_file" accept="image/*" class="input-standard" style="padding: 0.35rem;" />
-                            <input type="hidden" id="setting_masthead_url" value="${settings.masthead_url || ''}" />
-                        </div>
-                    </div>
-                    <button id="btnSaveSettings" class="btn-secondary" style="margin-top: 0.75rem;">Update Furniture</button>
-                </section>
 
                 <!-- Article Editor Form -->
                 ${editing ? `
                     <section class="cms-card cms-card-primary" id="articleEditorCard">
-                        <h2 style="font-family: var(--font-poster); font-size: 22px; text-transform: uppercase;">
-                            ${editing.id ? 'Edit Story' : 'File a New Story'}
-                        </h2>
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--color-ink); padding-bottom: 0.4rem; margin-bottom: 0.75rem;">
+                            <h2 style="font-family: var(--font-poster); font-size: 22px; text-transform: uppercase;">
+                                ${editing.id ? 'Edit Story' : 'File a New Story'}
+                            </h2>
+                            <span class="field-label" style="margin: 0; color: var(--color-brandred);">
+                                ${editing.id ? `Editing ID: ${editing.id}` : 'Draft Story'}
+                            </span>
+                        </div>
 
-                        <form id="storyForm" style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                        <form id="storyForm" style="display: flex; flex-direction: column; gap: 0.85rem;">
                             <div>
                                 <span class="field-label">Headline *</span>
                                 <input type="text" id="storyHeadline" class="input-standard" value="${editing.headline || ''}" placeholder="E.g. METRO EXPANSION APPROVED FOR OUTER CORRIDOR" required />
@@ -852,7 +1032,7 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <span class="field-label">Layout / Placement</span>
+                                    <span class="field-label">Layout / Placement on Front Page</span>
                                     <select id="storyPlacement" class="input-standard">
                                         <option value="lead" ${editing.placement === 'lead' ? 'selected' : ''}>Front Page Lead Banner</option>
                                         <option value="front_secondary" ${editing.placement === 'front_secondary' ? 'selected' : ''}>Front Page Boxed Story (side rail)</option>
@@ -866,7 +1046,7 @@
                             <div class="cms-grid-2">
                                 <div>
                                     <span class="field-label">Byline (Author)</span>
-                                    <input type="text" id="storyAuthor" class="input-standard" value="${editing.author_name || 'SYED WAJID'}" />
+                                    <input type="text" id="storyAuthor" class="input-standard" value="${editing.author_name || 'SYED WAJID'}" placeholder="Reporter or Editor Name" />
                                 </div>
                                 <div>
                                     <span class="field-label">Slug (URL identifier)</span>
@@ -889,6 +1069,63 @@
                                 <input type="hidden" id="storyImage" value="${editing.image_url || ''}" />
                             </div>
 
+                            <!-- Visual Layout Picker -->
+                            <div>
+                                <span class="field-label">Article Image & Text Arrangement Style</span>
+                                <div class="layout-picker-grid">
+                                    <label class="layout-picker-card ${currentLayout === 'top' ? 'active' : ''}">
+                                        <input type="radio" name="storyImageLayout" value="top" ${currentLayout === 'top' ? 'checked' : ''} />
+                                        <div class="layout-preview-box">
+                                            <div class="layout-mock-img"></div>
+                                            <div class="layout-mock-line"></div>
+                                            <div class="layout-mock-line"></div>
+                                            <div class="layout-mock-line"></div>
+                                        </div>
+                                        <span class="layout-title">Image Top</span>
+                                        <span class="layout-desc">Standard column view</span>
+                                    </label>
+
+                                    <label class="layout-picker-card ${currentLayout === 'left' ? 'active' : ''}">
+                                        <input type="radio" name="storyImageLayout" value="left" ${currentLayout === 'left' ? 'checked' : ''} />
+                                        <div class="layout-preview-box">
+                                            <div class="layout-mock-img float-left"></div>
+                                            <div class="layout-mock-line"></div>
+                                            <div class="layout-mock-line"></div>
+                                            <div class="layout-mock-line"></div>
+                                            <div class="layout-mock-line"></div>
+                                        </div>
+                                        <span class="layout-title">Image Left</span>
+                                        <span class="layout-desc">Text wraps right</span>
+                                    </label>
+
+                                    <label class="layout-picker-card ${currentLayout === 'right' ? 'active' : ''}">
+                                        <input type="radio" name="storyImageLayout" value="right" ${currentLayout === 'right' ? 'checked' : ''} />
+                                        <div class="layout-preview-box">
+                                            <div class="layout-mock-img float-right"></div>
+                                            <div class="layout-mock-line"></div>
+                                            <div class="layout-mock-line"></div>
+                                            <div class="layout-mock-line"></div>
+                                            <div class="layout-mock-line"></div>
+                                        </div>
+                                        <span class="layout-title">Image Right</span>
+                                        <span class="layout-desc">Text wraps left</span>
+                                    </label>
+
+                                    <label class="layout-picker-card ${currentLayout === 'banner' ? 'active' : ''}">
+                                        <input type="radio" name="storyImageLayout" value="banner" ${currentLayout === 'banner' ? 'checked' : ''} />
+                                        <div class="layout-preview-box">
+                                            <div class="layout-mock-banner"></div>
+                                            <div class="layout-mock-head"></div>
+                                            <div class="layout-mock-cols">
+                                                <div></div><div></div>
+                                            </div>
+                                        </div>
+                                        <span class="layout-title">Hero Banner</span>
+                                        <span class="layout-desc">Full-bleed header</span>
+                                    </label>
+                                </div>
+                            </div>
+
                             <div>
                                 <span class="field-label">Photo Caption</span>
                                 <input type="text" id="storyCaption" class="input-standard" value="${editing.image_caption || ''}" placeholder="Explain what is shown in the photograph..." />
@@ -899,10 +1136,17 @@
                                 <textarea id="storyBody" rows="12" class="input-standard" style="resize: vertical;" placeholder="Write story text here...">${editing.body || ''}</textarea>
                             </div>
 
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-condensed); text-transform: uppercase; font-size: 13px; letter-spacing: 0.14em; cursor: pointer;">
-                                <input type="checkbox" id="storyPublished" ${editing.published !== false ? 'checked' : ''} />
-                                Publish to the live newspaper
-                            </label>
+                            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 0.35rem 0;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-condensed); text-transform: uppercase; font-size: 13px; letter-spacing: 0.14em; cursor: pointer;">
+                                    <input type="checkbox" id="storyPublished" ${editing.published !== false ? 'checked' : ''} />
+                                    Publish to live newspaper
+                                </label>
+
+                                <label style="display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-condensed); text-transform: uppercase; font-size: 13px; letter-spacing: 0.14em; cursor: pointer; color: var(--color-brandred); font-weight: 700;">
+                                    <input type="checkbox" id="storyIsBreaking" ${editing.is_breaking ? 'checked' : ''} />
+                                    ⚡ Mark as Active Breaking News Headline
+                                </label>
+                            </div>
 
                             <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
                                 <button type="submit" class="btn-primary" style="width: auto; padding: 0.6rem 1.5rem;">Save story</button>
@@ -922,12 +1166,18 @@
                         ${articles.map(art => `
                             <div class="story-table-row">
                                 <div style="flex: 1; min-width: 260px;">
-                                    <p style="font-family: var(--font-serifhead); font-weight: 700; font-size: 16px;">${art.headline}</p>
-                                    <p style="font-family: var(--font-condensed); font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--color-stone);">
-                                        ${art.section} · ${art.placement || 'col3'} · ${art.published ? 'Published' : 'Draft'}
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem; flex-wrap: wrap;">
+                                        ${art.is_breaking ? `<span class="breaking-status-badge">⚡ BREAKING</span>` : ''}
+                                        <p style="font-family: var(--font-serifhead); font-weight: 700; font-size: 16px;">${art.headline}</p>
+                                    </div>
+                                    <p style="font-family: var(--font-condensed); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--color-stone);">
+                                        ${art.section} · ${art.placement || 'col3'} · Layout: <strong>${art.image_layout || 'top'}</strong> · By: <strong>${art.author_name || 'SYED WAJID'}</strong> · 👁️ ${art.views || 0} views · ${art.published ? 'Published' : 'Draft'}
                                     </p>
                                 </div>
-                                <div style="display: flex; gap: 0.5rem;">
+                                <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
+                                    <button class="btn-secondary btn-toggle-breaking" data-id="${art.id}" data-breaking="${art.is_breaking ? 'true' : 'false'}" style="font-size: 11px; padding: 0.35rem 0.6rem;">
+                                        ${art.is_breaking ? 'Unset Breaking' : 'Set Breaking'}
+                                    </button>
                                     <button class="btn-secondary btn-edit-story" data-id="${art.id}">Edit</button>
                                     <button class="btn-danger btn-delete-story" data-id="${art.id}">Delete</button>
                                 </div>
@@ -938,10 +1188,63 @@
 
                 </div><!-- /admin-panel-stories -->
 
+                <!-- ── READERSHIP & ANALYTICS TAB ── -->
+                <div id="admin-panel-analytics" style="${adminTab === 'analytics' ? '' : 'display:none;'}">
+                    <section class="cms-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <h2 style="font-family: var(--font-poster); font-size: 22px; text-transform: uppercase;">
+                                📊 Article Readership & Views
+                            </h2>
+                            <span style="font-family: var(--font-condensed); font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--color-stone);">
+                                Total Tracked Stories: <strong>${articles.length}</strong>
+                            </span>
+                        </div>
+                        <p style="font-family: var(--font-serifhead); font-size: 13px; font-style: italic; color: var(--color-stone); margin-bottom: 1rem;">
+                            Track total page reads across the digital broadsheet edition.
+                        </p>
+
+                        <table class="analytics-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 45px;">#</th>
+                                    <th>Headline</th>
+                                    <th>Section</th>
+                                    <th>Author</th>
+                                    <th>Layout</th>
+                                    <th>Views</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${[...articles].sort((a, b) => (b.views || 0) - (a.views || 0)).map((art, idx) => `
+                                    <tr>
+                                        <td><strong>#${idx + 1}</strong></td>
+                                        <td>
+                                            <a href="#/article/${art.slug}" target="_blank" style="font-weight: 700; color: var(--color-ink); text-decoration: underline;">
+                                                ${art.headline}
+                                            </a>
+                                            ${art.is_breaking ? ` <span class="breaking-status-badge">BREAKING</span>` : ''}
+                                        </td>
+                                        <td><span style="font-family: var(--font-condensed); font-size: 12px; text-transform: uppercase;">${art.section}</span></td>
+                                        <td><span style="font-family: var(--font-serifhead); font-size: 13px;">${art.author_name || 'SYED WAJID'}</span></td>
+                                        <td><span style="font-family: var(--font-condensed); font-size: 11px; text-transform: uppercase;">${art.image_layout || 'top'}</span></td>
+                                        <td><span class="views-count-pill">👁️ ${(art.views || 0).toLocaleString()}</span></td>
+                                        <td>
+                                            <span style="font-family: var(--font-condensed); font-size: 11px; font-weight: 700; text-transform: uppercase; color: ${art.published ? '#059669' : '#d97706'};">
+                                                ${art.published ? 'Live' : 'Draft'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </section>
+                </div>
+
                 <!-- ── SITE SETTINGS TAB ── -->
                 <div id="admin-panel-settings" style="${adminTab === 'settings' ? '' : 'display:none;'}">
                 <section class="cms-card">
-                    <h2 class="field-label">Front page furniture</h2>
+                    <h2 class="field-label" style="font-size: 16px; margin-bottom: 0.5rem; text-transform: uppercase;">Front page furniture</h2>
                     <div class="cms-grid-2" style="margin-top: 0.5rem;">
                         <div>
                             <span class="field-label">Paper Name</span>
@@ -960,8 +1263,20 @@
                             <input type="text" id="setting_website_line" class="input-standard" value="${settings.website_line || ''}" />
                         </div>
                         <div>
-                            <span class="field-label">RNI Line</span>
-                            <input type="text" id="setting_rni_line" class="input-standard" value="${settings.rni_line || ''}" />
+                            <span class="field-label">RNI Registration Line</span>
+                            <input type="text" id="setting_rni_line" class="input-standard" value="${settings.rni_line || 'RNI : DELENG2016/66892'}" placeholder="RNI : DELENG2016/66892" />
+                        </div>
+                        <div>
+                            <span class="field-label">Masthead Date Display Mode</span>
+                            <select id="setting_date_mode" class="input-standard">
+                                <option value="auto" ${settings.date_mode !== 'manual' ? 'selected' : ''}>Auto-update daily (Dynamic live date)</option>
+                                <option value="manual" ${settings.date_mode === 'manual' ? 'selected' : ''}>Manual Custom Date (Fixed override)</option>
+                            </select>
+                        </div>
+                        <div id="customDateContainer" style="${settings.date_mode === 'manual' ? '' : 'display: none;'}">
+                            <span class="field-label">Custom Date String (Override)</span>
+                            <input type="text" id="setting_custom_date" class="input-standard" value="${settings.custom_date || ''}" placeholder="e.g. New Delhi, Monday, 15 August 2026" />
+                            <p style="font-size: 11px; font-style: italic; color: var(--color-stone); margin-top: 0.2rem;">Leave blank or switch to 'Auto-update daily' for today's dynamic date.</p>
                         </div>
                         <div>
                             <span class="field-label">Masthead Logo (Upload From Device)</span>
@@ -969,7 +1284,34 @@
                             <input type="hidden" id="setting_masthead_url" value="${settings.masthead_url || ''}" />
                         </div>
                     </div>
-                    <button id="btnSaveSettings" class="btn-secondary" style="margin-top: 0.75rem;">Update Furniture</button>
+
+                    <h2 class="field-label" style="font-size: 16px; margin-top: 1.5rem; margin-bottom: 0.5rem; text-transform: uppercase; border-top: 1px solid var(--color-rule); padding-top: 1rem;">
+                        Editor-in-Chief Profile & Social Links
+                    </h2>
+                    <div class="cms-grid-2">
+                        <div>
+                            <span class="field-label">Editor / Owner Full Name</span>
+                            <input type="text" id="setting_editor_name" class="input-standard" value="${settings.editor_name || 'SYED WAJID'}" />
+                        </div>
+                        <div>
+                            <span class="field-label">Title / Role</span>
+                            <input type="text" id="setting_editor_title" class="input-standard" value="${settings.editor_title || 'Editor-in-Chief & Founder'}" />
+                        </div>
+                        <div>
+                            <span class="field-label">Instagram Profile URL</span>
+                            <input type="url" id="setting_editor_instagram" class="input-standard" value="${settings.editor_instagram || 'https://instagram.com'}" placeholder="https://instagram.com/username" />
+                        </div>
+                        <div>
+                            <span class="field-label">Twitter / X Profile URL</span>
+                            <input type="url" id="setting_editor_twitter" class="input-standard" value="${settings.editor_twitter || 'https://twitter.com'}" placeholder="https://twitter.com/username" />
+                        </div>
+                    </div>
+                    <div style="margin-top: 0.75rem;">
+                        <span class="field-label">Editor Bio Quote</span>
+                        <textarea id="setting_editor_bio" class="input-standard" rows="3">${settings.editor_bio || ''}</textarea>
+                    </div>
+
+                    <button id="btnSaveSettings" class="btn-secondary" style="margin-top: 1rem; width: auto; padding: 0.6rem 1.5rem;">Update Site Settings</button>
                 </section>
                 </div><!-- /admin-panel-settings -->
 
@@ -1114,8 +1456,7 @@
             return `
                 <footer class="footer-credits">
                     <p>
-                        Published by DNL Media. All rights reserved. ·
-                        <a href="#/auth">Newsroom login</a>
+                        Published by DNL Media. All rights reserved.
                     </p>
                 </footer>
             `;
@@ -1168,7 +1509,35 @@
                 });
             }
 
-            // Auth Login
+            // Copy Link Share Buttons
+            document.querySelectorAll('.btn-copy-article-link').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const url = btn.getAttribute('data-url') || window.location.href;
+                    try {
+                        await navigator.clipboard.writeText(url);
+                        const toast = btn.parentElement ? btn.parentElement.querySelector('.share-copy-toast') : null;
+                        if (toast) {
+                            toast.style.display = 'inline-block';
+                            setTimeout(() => { toast.style.display = 'none'; }, 2000);
+                        } else {
+                            alert('Link copied to clipboard!');
+                        }
+                    } catch (err) {
+                        prompt('Copy this link:', url);
+                    }
+                });
+            });
+
+            // Layout Picker Radio Card Selection
+            document.querySelectorAll('.layout-picker-card input[type="radio"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    document.querySelectorAll('.layout-picker-card').forEach(card => card.classList.remove('active'));
+                    const parentCard = radio.closest('.layout-picker-card');
+                    if (parentCard) parentCard.classList.add('active');
+                });
+            });
+
+            // Auth Login Form
             const authForm = document.getElementById('authForm');
             if (authForm) {
                 authForm.addEventListener('submit', async (e) => {
@@ -1182,10 +1551,10 @@
 
                     const email = document.getElementById('authEmail').value;
                     const pass = document.getElementById('authPassword').value;
-                    
+
                     try {
                         await window.DNLDataStore.login(email, pass);
-                        this.navigate('/admin');
+                        this.render();
                     } catch (err) {
                         alert('Login failed: ' + (err.message || err));
                     } finally {
@@ -1194,15 +1563,6 @@
                             submitBtn.disabled = false;
                         }
                     }
-                });
-            }
-
-            const quickEditorBtn = document.getElementById('quickEditorBtn');
-            if (quickEditorBtn) {
-                quickEditorBtn.addEventListener('click', async () => {
-                    quickEditorBtn.innerText = '⚡ Connecting to Newsroom...';
-                    await window.DNLDataStore.login('editor@delhinewslive.in', 'quick');
-                    this.navigate('/admin');
                 });
             }
 
@@ -1228,6 +1588,9 @@
                         slug: '',
                         image_url: '',
                         image_caption: '',
+                        image_layout: 'top',
+                        is_breaking: false,
+                        views: 0,
                         body: '',
                         published: true
                     };
@@ -1252,6 +1615,16 @@
                 storyImageFile.addEventListener('change', (e) => {
                     const file = e.target.files && e.target.files[0];
                     if (file) {
+                        if (!file.type.startsWith('image/')) {
+                            alert('Please select a valid image file (JPG, PNG, WebP, GIF).');
+                            storyImageFile.value = '';
+                            return;
+                        }
+                        if (file.size > 8 * 1024 * 1024) {
+                            alert('Image file size exceeds 8MB limit. Please choose a smaller photo.');
+                            storyImageFile.value = '';
+                            return;
+                        }
                         const reader = new FileReader();
                         reader.onload = (loadEvt) => {
                             const dataUrl = loadEvt.target.result;
@@ -1274,6 +1647,16 @@
                 mastheadFile.addEventListener('change', (e) => {
                     const file = e.target.files && e.target.files[0];
                     if (file) {
+                        if (!file.type.startsWith('image/')) {
+                            alert('Please select a valid image file for masthead logo.');
+                            mastheadFile.value = '';
+                            return;
+                        }
+                        if (file.size > 5 * 1024 * 1024) {
+                            alert('Logo image exceeds 5MB limit.');
+                            mastheadFile.value = '';
+                            return;
+                        }
                         const reader = new FileReader();
                         reader.onload = (loadEvt) => {
                             document.getElementById('setting_masthead_url').value = loadEvt.target.result;
@@ -1302,16 +1685,21 @@
                     const submitBtn = storyForm.querySelector('button[type="submit"]');
                     if (submitBtn) submitBtn.innerText = 'Publishing...';
 
+                    const selectedLayoutRadio = document.querySelector('input[name="storyImageLayout"]:checked');
+                    const selectedLayout = selectedLayoutRadio ? selectedLayoutRadio.value : 'top';
+
                     const updated = {
                         ...this.editingArticle,
                         headline: document.getElementById('storyHeadline').value,
                         standfirst: document.getElementById('storyStandfirst').value,
                         section: document.getElementById('storySection').value,
                         placement: document.getElementById('storyPlacement').value,
-                        author_name: document.getElementById('storyAuthor').value,
+                        author_name: document.getElementById('storyAuthor').value || 'SYED WAJID',
                         slug: document.getElementById('storySlug').value || window.DNLDataStore.slugify(document.getElementById('storyHeadline').value),
                         image_url: document.getElementById('storyImage').value,
                         image_caption: document.getElementById('storyCaption').value,
+                        image_layout: selectedLayout,
+                        is_breaking: document.getElementById('storyIsBreaking') ? document.getElementById('storyIsBreaking').checked : false,
                         body: document.getElementById('storyBody').value,
                         published: document.getElementById('storyPublished').checked
                     };
@@ -1347,6 +1735,27 @@
                 });
             });
 
+            // Toggle Breaking News Button in Story List
+            document.querySelectorAll('.btn-toggle-breaking').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.getAttribute('data-id');
+                    const isBreaking = btn.getAttribute('data-breaking') === 'true';
+                    await window.DNLDataStore.setBreakingArticle(id, !isBreaking);
+                    this.render();
+                });
+            });
+
+            // Date mode select toggle
+            const settingDateMode = document.getElementById('setting_date_mode');
+            if (settingDateMode) {
+                settingDateMode.addEventListener('change', (e) => {
+                    const customDateBox = document.getElementById('customDateContainer');
+                    if (customDateBox) {
+                        customDateBox.style.display = e.target.value === 'manual' ? 'block' : 'none';
+                    }
+                });
+            }
+
             // Save Settings
             const btnSaveSettings = document.getElementById('btnSaveSettings');
             if (btnSaveSettings) {
@@ -1357,11 +1766,18 @@
                         edition_line: document.getElementById('setting_edition_line').value,
                         website_line: document.getElementById('setting_website_line').value,
                         rni_line: document.getElementById('setting_rni_line').value,
-                        masthead_url: document.getElementById('setting_masthead_url').value
+                        date_mode: document.getElementById('setting_date_mode') ? document.getElementById('setting_date_mode').value : 'auto',
+                        custom_date: document.getElementById('setting_custom_date') ? document.getElementById('setting_custom_date').value : '',
+                        masthead_url: document.getElementById('setting_masthead_url').value,
+                        editor_name: document.getElementById('setting_editor_name').value,
+                        editor_title: document.getElementById('setting_editor_title').value,
+                        editor_bio: document.getElementById('setting_editor_bio').value,
+                        editor_instagram: document.getElementById('setting_editor_instagram').value,
+                        editor_twitter: document.getElementById('setting_editor_twitter').value
                     };
                     btnSaveSettings.innerText = 'Updating...';
                     await window.DNLDataStore.updateSettings(newSettings);
-                    alert('Front page furniture updated successfully!');
+                    alert('Front page furniture, masthead settings, and editor profile updated successfully!');
                     this.render();
                 });
             }
@@ -1412,6 +1828,16 @@
                 ivThumbFile.addEventListener('change', (e) => {
                     const file = e.target.files && e.target.files[0];
                     if (file) {
+                        if (!file.type.startsWith('image/')) {
+                            alert('Please select a valid image file for interview thumbnail.');
+                            ivThumbFile.value = '';
+                            return;
+                        }
+                        if (file.size > 5 * 1024 * 1024) {
+                            alert('Thumbnail file size exceeds 5MB limit.');
+                            ivThumbFile.value = '';
+                            return;
+                        }
                         const reader = new FileReader();
                         reader.onload = (ev) => {
                             const urlField = document.getElementById('ivThumbUrl');
@@ -1432,6 +1858,19 @@
                         return;
                     }
 
+                    const ivFile = document.getElementById('ivFile');
+                    const file   = ivFile && ivFile.files && ivFile.files[0];
+                    if (file) {
+                        if (!file.type.startsWith('video/')) {
+                            alert('Please select a valid video file (MP4, WebM, MOV, OGG).');
+                            return;
+                        }
+                        if (file.size > 30 * 1024 * 1024) {
+                            alert('Video file size exceeds 30MB limit. For longer video broadcasts, please paste a YouTube or Vimeo URL.');
+                            return;
+                        }
+                    }
+
                     btnSaveIV.innerText = 'Publishing...';
                     btnSaveIV.disabled = true;
 
@@ -1439,10 +1878,6 @@
                     const desc        = (document.getElementById('ivDesc').value || '').trim();
                     const urlInput    = (document.getElementById('ivUrl').value || '').trim();
                     const thumbUrl    = (document.getElementById('ivThumbUrl').value || '').trim();
-
-                    // Handle video file upload
-                    const ivFile = document.getElementById('ivFile');
-                    const file   = ivFile && ivFile.files && ivFile.files[0];
 
                     const finalize = async (videoUrl, thumbnailUrl) => {
                         await window.DNLDataStore.saveInterview({
