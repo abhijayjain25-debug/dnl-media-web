@@ -14,7 +14,7 @@ const DEFAULT_SETTINGS = {
     rni_line: "RNI : DELENG2016/66892",
     date_mode: "auto",
     custom_date: "",
-    masthead_url: "assets/logo.jpg",
+    masthead_url: "assets/logo.png",
     editor_name: "SYED WAJID",
     editor_title: "Executive Editor",
     editor_bio: `is a seasoned and veteran journalist with an experience of more than two decades. Writing with a flair and passion; crime and politics have been his forte. He has written more than 15000 pieces comprising articles, reports, features and editorials in the past 25 years.
@@ -24,8 +24,8 @@ Syed Wajid popularly known as Sufi, is a PIB accredited journalist who has contr
 He has been working as an executive editor for Delhi News Live, an English daily.
 
 Besides, he has been editing several other english magazines and periodicals as well.`,
-    editor_instagram: "https://instagram.com",
-    editor_twitter: "https://twitter.com"
+    editor_instagram: "https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==",
+    editor_twitter: "https://x.com/journo_sufi?s=20"
 };
 
 /**
@@ -670,8 +670,8 @@ class DataStore {
                     editor_name: updated.editor_name || 'SYED WAJID',
                     editor_title: updated.editor_title || 'Editor-in-Chief & Founder',
                     editor_bio: updated.editor_bio || '',
-                    editor_instagram: updated.editor_instagram || 'https://instagram.com',
-                    editor_twitter: updated.editor_twitter || 'https://twitter.com',
+                    editor_instagram: updated.editor_instagram || 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==',
+                    editor_twitter: updated.editor_twitter || 'https://x.com/journo_sufi?s=20',
                     updated_at: new Date().toISOString()
                 };
                 await this.supabase.from('settings').upsert(dbPayload, { onConflict: 'id' });

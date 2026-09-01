@@ -167,12 +167,43 @@
         }
 
         renderMasthead(settings) {
-            const logoUrl = settings.masthead_url || 'assets/logo.jpg';
+            const isCustomLogo = settings.masthead_url &&
+                                 settings.masthead_url !== 'assets/logo.jpg' &&
+                                 settings.masthead_url !== 'assets/logo.png' &&
+                                 !settings.masthead_url.includes('assets/logo');
+
+            if (isCustomLogo) {
+                return `
+                    <a href="#/" class="masthead-track" aria-label="Delhi News Live Front Page">
+                        <div class="masthead-marquee">
+                            <img src="${settings.masthead_url}" alt="${settings.paper_name}" class="masthead-item" />
+                            <img src="${settings.masthead_url}" alt="${settings.paper_name}" class="masthead-item" aria-hidden="true" />
+                        </div>
+                    </a>
+                `;
+            }
+
             return `
                 <a href="#/" class="masthead-track" aria-label="Delhi News Live Front Page">
                     <div class="masthead-marquee">
-                        <img src="${logoUrl}" alt="${settings.paper_name}" class="masthead-item" />
-                        <img src="${logoUrl}" alt="${settings.paper_name}" class="masthead-item" aria-hidden="true" />
+                        <div class="masthead-item dnl-logo-lockup" aria-label="${settings.paper_name}">
+                            <img src="assets/logo_banner.png" alt="${settings.paper_name}" class="dnl-logo-banner" />
+                            <div class="dnl-circle-spin-wrap">
+                                <div class="dnl-globe-disc">
+                                    <img src="assets/dnl_circle.png" alt="DNL Media" class="dnl-globe-face dnl-globe-front" />
+                                    <img src="assets/dnl_circle.png" alt="" class="dnl-globe-face dnl-globe-back" aria-hidden="true" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="masthead-item dnl-logo-lockup" aria-hidden="true">
+                            <img src="assets/logo_banner.png" alt="" class="dnl-logo-banner" />
+                            <div class="dnl-circle-spin-wrap">
+                                <div class="dnl-globe-disc">
+                                    <img src="assets/dnl_circle.png" alt="" class="dnl-globe-face dnl-globe-front" />
+                                    <img src="assets/dnl_circle.png" alt="" class="dnl-globe-face dnl-globe-back" aria-hidden="true" />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </a>
             `;
@@ -311,8 +342,12 @@ Besides, he has been editing several other english magazines and periodicals as 
 
             const bioRaw = settings.editor_bio || defaultBio;
             const bioParas = bioRaw.split(/\n\n+/).filter(p => p.trim());
-            const igUrl = settings.editor_instagram || 'https://instagram.com';
-            const twUrl = settings.editor_twitter || 'https://twitter.com';
+            const igUrl = (settings.editor_instagram && settings.editor_instagram !== 'https://instagram.com')
+                ? settings.editor_instagram
+                : 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==';
+            const twUrl = (settings.editor_twitter && settings.editor_twitter !== 'https://twitter.com')
+                ? settings.editor_twitter
+                : 'https://x.com/journo_sufi?s=20';
 
             return `
                 <div class="editor-desk-section">
@@ -1299,11 +1334,11 @@ Besides, he has been editing several other english magazines and periodicals as 
                         </div>
                         <div>
                             <span class="field-label">Instagram Profile URL</span>
-                            <input type="url" id="setting_editor_instagram" class="input-standard" value="${settings.editor_instagram || 'https://instagram.com'}" placeholder="https://instagram.com/username" />
+                            <input type="url" id="setting_editor_instagram" class="input-standard" value="${(settings.editor_instagram && settings.editor_instagram !== 'https://instagram.com') ? settings.editor_instagram : 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw=='}" placeholder="https://instagram.com/sufijourno" />
                         </div>
                         <div>
                             <span class="field-label">Twitter / X Profile URL</span>
-                            <input type="url" id="setting_editor_twitter" class="input-standard" value="${settings.editor_twitter || 'https://twitter.com'}" placeholder="https://twitter.com/username" />
+                            <input type="url" id="setting_editor_twitter" class="input-standard" value="${(settings.editor_twitter && settings.editor_twitter !== 'https://twitter.com') ? settings.editor_twitter : 'https://x.com/journo_sufi?s=20'}" placeholder="https://x.com/journo_sufi" />
                         </div>
                     </div>
                     <div style="margin-top: 0.75rem;">

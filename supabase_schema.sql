@@ -60,8 +60,8 @@ Syed Wajid popularly known as Sufi, is a PIB accredited journalist who has contr
 He has been working as an executive editor for Delhi News Live, an English daily.
 
 Besides, he has been editing several other english magazines and periodicals as well.',
-    editor_instagram TEXT DEFAULT 'https://instagram.com',
-    editor_twitter TEXT DEFAULT 'https://twitter.com',
+    editor_instagram TEXT DEFAULT 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==',
+    editor_twitter TEXT DEFAULT 'https://x.com/journo_sufi?s=20',
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -81,8 +81,8 @@ Syed Wajid popularly known as Sufi, is a PIB accredited journalist who has contr
 He has been working as an executive editor for Delhi News Live, an English daily.
 
 Besides, he has been editing several other english magazines and periodicals as well.';
-ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_instagram TEXT DEFAULT 'https://instagram.com';
-ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_twitter TEXT DEFAULT 'https://twitter.com';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_instagram TEXT DEFAULT 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_twitter TEXT DEFAULT 'https://x.com/journo_sufi?s=20';
 
 -- Update existing settings row with correct website line
 UPDATE public.settings 
@@ -97,7 +97,7 @@ Syed Wajid popularly known as Sufi, is a PIB accredited journalist who has contr
 
 He has been working as an executive editor for Delhi News Live, an English daily.
 
-Besides, he has been editing several other english magazines and periodicals as well.', 'https://instagram.com', 'https://twitter.com')
+Besides, he has been editing several other english magazines and periodicals as well.', 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==', 'https://x.com/journo_sufi?s=20')
 ON CONFLICT (id) DO UPDATE SET website_line = EXCLUDED.website_line;
 
 -- =============================================================================
