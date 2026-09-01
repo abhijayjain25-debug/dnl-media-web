@@ -1092,6 +1092,54 @@ class DataStore {
             }
         }
     }
+
+    /**
+     * Upload a binary file (Video / Image) directly to Supabase Storage bucket 'media'.
+     * Returns permanent public CDN HTTPS URL.
+     */
+    async uploadMediaFile(file, folder = 'videos') {
+        if (!file) return '';
+
+        if (this.supabase && this.supabase.storage) {
+            try {
+                const cleanName = (file.name || 'file').replace(/[^a-zA-Z0-9.-]/g, '_');
+                const filePath = `${folder}/${Date.now()}_${Math.random().toString(36).substr(2, 6)}_${cleanName}`;
+
+                const { data, error } = await this.supabase.storage
+                    .from('media')
+                    .upload(filePath, file, {
+                        cacheControl: '3600',
+                        upsert: true
+                    });
+
+                if (!error && data) {
+                    const { data: pubData } = this.supabase.storage
+                        .from('media')
+                        .getPublicUrl(filePath);
+
+                    if (pubData && pubData.publicUrl) {
+                        console.log('✅ File uploaded to Supabase Storage bucket (media):', pubData.publicUrl);
+                        return pubData.publicUrl;
+                    }
+                } else if (error) {
+                    console.warn('⚠️ Supabase Storage upload issue (falling back to DataURL):', error.message);
+                }
+            } catch (err) {
+                console.warn('⚠️ Supabase Storage exception:', err);
+            }
+        }
+
+        return await this.fileToDataUrl(file);
+    }
+
+    fileToDataUrl(file) {
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result || '');
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(file);
+        });
+    }
 }
 
 window.DNLDataStore = new DataStore();

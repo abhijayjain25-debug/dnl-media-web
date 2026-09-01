@@ -1612,7 +1612,7 @@ Besides, he has been editing several other english magazines and periodicals as 
             // Device Image Upload for Story
             const storyImageFile = document.getElementById('storyImageFile');
             if (storyImageFile) {
-                storyImageFile.addEventListener('change', (e) => {
+                storyImageFile.addEventListener('change', async (e) => {
                     const file = e.target.files && e.target.files[0];
                     if (file) {
                         if (!file.type.startsWith('image/')) {
@@ -1625,18 +1625,17 @@ Besides, he has been editing several other english magazines and periodicals as 
                             storyImageFile.value = '';
                             return;
                         }
-                        const reader = new FileReader();
-                        reader.onload = (loadEvt) => {
-                            const dataUrl = loadEvt.target.result;
-                            document.getElementById('storyImage').value = dataUrl;
-                            const preview = document.getElementById('imagePreview');
-                            const previewContainer = document.getElementById('imagePreviewContainer');
-                            if (preview && previewContainer) {
-                                preview.src = dataUrl;
-                                previewContainer.style.display = 'block';
-                            }
-                        };
-                        reader.readAsDataURL(file);
+                        const preview = document.getElementById('imagePreview');
+                        const previewContainer = document.getElementById('imagePreviewContainer');
+                        const urlInput = document.getElementById('storyImage');
+                        if (urlInput) urlInput.value = 'Uploading to Supabase Storage...';
+
+                        const uploadedUrl = await window.DNLDataStore.uploadMediaFile(file, 'articles');
+                        if (urlInput) urlInput.value = uploadedUrl;
+                        if (preview && previewContainer) {
+                            preview.src = uploadedUrl;
+                            previewContainer.style.display = 'block';
+                        }
                     }
                 });
             }
@@ -1644,7 +1643,7 @@ Besides, he has been editing several other english magazines and periodicals as 
             // Masthead Logo Upload
             const mastheadFile = document.getElementById('setting_masthead_file');
             if (mastheadFile) {
-                mastheadFile.addEventListener('change', (e) => {
+                mastheadFile.addEventListener('change', async (e) => {
                     const file = e.target.files && e.target.files[0];
                     if (file) {
                         if (!file.type.startsWith('image/')) {
@@ -1657,11 +1656,8 @@ Besides, he has been editing several other english magazines and periodicals as 
                             mastheadFile.value = '';
                             return;
                         }
-                        const reader = new FileReader();
-                        reader.onload = (loadEvt) => {
-                            document.getElementById('setting_masthead_url').value = loadEvt.target.result;
-                        };
-                        reader.readAsDataURL(file);
+                        const uploadedUrl = await window.DNLDataStore.uploadMediaFile(file, 'branding');
+                        document.getElementById('setting_masthead_url').value = uploadedUrl;
                     }
                 });
             }
@@ -1825,7 +1821,7 @@ Besides, he has been editing several other english magazines and periodicals as 
             /* ── Interview: Thumbnail file upload ── */
             const ivThumbFile = document.getElementById('ivThumbFile');
             if (ivThumbFile) {
-                ivThumbFile.addEventListener('change', (e) => {
+                ivThumbFile.addEventListener('change', async (e) => {
                     const file = e.target.files && e.target.files[0];
                     if (file) {
                         if (!file.type.startsWith('image/')) {
@@ -1838,12 +1834,10 @@ Besides, he has been editing several other english magazines and periodicals as 
                             ivThumbFile.value = '';
                             return;
                         }
-                        const reader = new FileReader();
-                        reader.onload = (ev) => {
-                            const urlField = document.getElementById('ivThumbUrl');
-                            if (urlField) urlField.value = ev.target.result;
-                        };
-                        reader.readAsDataURL(file);
+                        const urlField = document.getElementById('ivThumbUrl');
+                        if (urlField) urlField.value = 'Uploading thumbnail to Supabase Storage...';
+                        const uploadedThumb = await window.DNLDataStore.uploadMediaFile(file, 'thumbnails');
+                        if (urlField) urlField.value = uploadedThumb;
                     }
                 });
             }
@@ -1865,13 +1859,13 @@ Besides, he has been editing several other english magazines and periodicals as 
                             alert('Please select a valid video file (MP4, WebM, MOV, OGG).');
                             return;
                         }
-                        if (file.size > 30 * 1024 * 1024) {
-                            alert('Video file size exceeds 30MB limit. For longer video broadcasts, please paste a YouTube or Vimeo URL.');
+                        if (file.size > 50 * 1024 * 1024) {
+                            alert('Video file size exceeds 50MB limit. For longer video broadcasts, please paste a YouTube or Vimeo URL.');
                             return;
                         }
                     }
 
-                    btnSaveIV.innerText = 'Publishing...';
+                    btnSaveIV.innerText = 'Uploading to Supabase Storage...';
                     btnSaveIV.disabled = true;
 
                     const guest       = (document.getElementById('ivGuest').value || '').trim();
@@ -1879,27 +1873,23 @@ Besides, he has been editing several other english magazines and periodicals as 
                     const urlInput    = (document.getElementById('ivUrl').value || '').trim();
                     const thumbUrl    = (document.getElementById('ivThumbUrl').value || '').trim();
 
-                    const finalize = async (videoUrl, thumbnailUrl) => {
-                        await window.DNLDataStore.saveInterview({
-                            title,
-                            guest,
-                            description: desc,
-                            videoUrl: videoUrl || '',
-                            thumbnail: thumbnailUrl || '',
-                            date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-                        });
-                        alert('Interview clip published successfully to backend!');
-                        this.adminTab = 'interviews';
-                        this.render();
-                    };
-
+                    let finalVideoUrl = urlInput;
                     if (file) {
-                        const reader = new FileReader();
-                        reader.onload = async (ev) => await finalize(ev.target.result, thumbUrl);
-                        reader.readAsDataURL(file);
-                    } else {
-                        await finalize(urlInput, thumbUrl);
+                        finalVideoUrl = await window.DNLDataStore.uploadMediaFile(file, 'videos');
                     }
+
+                    await window.DNLDataStore.saveInterview({
+                        title,
+                        guest,
+                        description: desc,
+                        videoUrl: finalVideoUrl || '',
+                        thumbnail: thumbUrl || '',
+                        date: new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                    });
+
+                    alert('Interview clip uploaded and published successfully to Supabase Storage & Database!');
+                    this.adminTab = 'interviews';
+                    this.render();
                 });
             }
         }

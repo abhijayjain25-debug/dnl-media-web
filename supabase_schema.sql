@@ -191,6 +191,42 @@ CREATE POLICY "Authenticated admin can update settings"
     WITH CHECK (auth.uid() IS NOT NULL);
 
 -- =============================================================================
+-- 4. SUPABASE STORAGE BUCKET: "media" (Videos, Images, Masthead assets)
+-- =============================================================================
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('media', 'media', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- Drop existing storage policies if re-running
+DROP POLICY IF EXISTS "Public can view media objects" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated admins can upload media objects" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated admins can update media objects" ON storage.objects;
+DROP POLICY IF EXISTS "Authenticated admins can delete media objects" ON storage.objects;
+
+-- Storage Policy: Anyone can view uploaded media (public CDN URLs)
+CREATE POLICY "Public can view media objects"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'media');
+
+-- Storage Policy: Only authenticated users can upload media files
+CREATE POLICY "Authenticated admins can upload media objects"
+    ON storage.objects FOR INSERT
+    TO authenticated
+    WITH CHECK (bucket_id = 'media' AND auth.uid() IS NOT NULL);
+
+-- Storage Policy: Only authenticated users can update or delete media files
+CREATE POLICY "Authenticated admins can update media objects"
+    ON storage.objects FOR UPDATE
+    TO authenticated
+    USING (bucket_id = 'media' AND auth.uid() IS NOT NULL)
+    WITH CHECK (bucket_id = 'media' AND auth.uid() IS NOT NULL);
+
+CREATE POLICY "Authenticated admins can delete media objects"
+    ON storage.objects FOR DELETE
+    TO authenticated
+    USING (bucket_id = 'media' AND auth.uid() IS NOT NULL);
+
+-- =============================================================================
 -- REALTIME REPLICATION (Instant multi-device broadcast)
 -- =============================================================================
 ALTER PUBLICATION supabase_realtime ADD TABLE public.articles;
