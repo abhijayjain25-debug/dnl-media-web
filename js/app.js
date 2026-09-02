@@ -252,13 +252,12 @@
         renderFrontPageScroll() {
             const settings = window.DNLDataStore.getSettings();
             const articles = window.DNLDataStore.getPublishedArticles();
-            const lead = articles.find(a => a.placement === 'lead') || articles[0];
-            const secondary = articles.filter(a => a.placement === 'front_secondary' && a.id !== lead?.id);
-            // Continuation stories: all except lead and front_secondary
+            const lead = articles.find(a => (a.placement || '').toString().trim().toLowerCase() === 'lead') || articles[0];
+            const secondary = articles.filter(a => (a.placement || '').toString().trim().toLowerCase() === 'front_secondary' && a.id !== lead?.id);
+            // Continuation stories: all published stories except the active lead and front_secondary
             const continuation = articles.filter(a =>
                 a.id !== lead?.id &&
-                a.placement !== 'front_secondary' &&
-                a.placement !== 'lead'
+                (a.placement || '').toString().trim().toLowerCase() !== 'front_secondary'
             );
 
             if (!lead) {
@@ -562,16 +561,48 @@ Besides, he has been editing several other english magazines and periodicals as 
                 const art = articles[i];
                 const placement = art.placement || 'col3';
 
-                if (placement === 'col3') {
-                    // Grab up to 3 col3 articles for this row
-                    const group = [art];
+                if (placement === 'col3' || placement === 'standard') {
+                    // Collect up to 3 consecutive col3/standard articles
+                    const gathered = [art];
                     let j = i + 1;
-                    while (j < articles.length && (articles[j].placement === 'col3' || articles[j].placement === 'standard') && group.length < 3) {
-                        group.push(articles[j]);
+                    while (j < articles.length &&
+                           (articles[j].placement === 'col3' || articles[j].placement === 'standard') &&
+                           gathered.length < 3) {
+                        gathered.push(articles[j]);
                         j++;
                     }
-                    rows.push({ type: 'col3', items: group });
                     i = j;
+
+                    // Apply column_pin: arrange gathered articles into a 3-slot grid.
+                    // Slots: [left=0, centre=1, right=2].
+                    // Pinned articles claim their slot first; auto articles fill remaining slots in order.
+                    const slots = [null, null, null];
+                    const pinMap = { left: 0, centre: 1, center: 1, right: 2 };
+                    const autos = [];
+                    for (const a of gathered) {
+                        const pin = (a.column_pin || 'auto').toLowerCase();
+                        if (pin !== 'auto' && pinMap[pin] !== undefined) {
+                            const slotIdx = pinMap[pin];
+                            // If slot already claimed, demote to auto
+                            if (!slots[slotIdx]) {
+                                slots[slotIdx] = a;
+                            } else {
+                                autos.push(a);
+                            }
+                        } else {
+                            autos.push(a);
+                        }
+                    }
+                    // Fill empty slots with auto articles
+                    for (let s = 0; s < 3; s++) {
+                        if (!slots[s] && autos.length > 0) {
+                            slots[s] = autos.shift();
+                        }
+                    }
+                    // Trim trailing nulls (if < 3 articles in this batch)
+                    const group = slots.filter(Boolean);
+                    rows.push({ type: 'col3', items: group });
+
                 } else if (placement === 'col2') {
                     // col2 takes a companion col1 if next article is col1
                     const group = [art];
@@ -594,15 +625,9 @@ Besides, he has been editing several other english magazines and periodicals as 
                     }
                     rows.push({ type: 'col1', items: group });
                 } else {
-                    // standard / fallback → treat as col3
-                    const group = [art];
-                    let j = i + 1;
-                    while (j < articles.length && (articles[j].placement === 'col3' || articles[j].placement === 'standard') && group.length < 3) {
-                        group.push(articles[j]);
-                        j++;
-                    }
-                    rows.push({ type: 'col3', items: group });
-                    i = j;
+                    // Unknown placement → fallback to col3
+                    rows.push({ type: 'col3', items: [art] });
+                    i += 1;
                 }
             }
             return rows;
@@ -1067,14 +1092,29 @@ Besides, he has been editing several other english magazines and periodicals as 
                                     </select>
                                 </div>
                                 <div>
-                                    <span class="field-label">Layout / Placement on Front Page</span>
+                                    <span class="field-label">👑 Front Page Placement & Headline Prominence</span>
                                     <select id="storyPlacement" class="input-standard">
-                                        <option value="lead" ${editing.placement === 'lead' ? 'selected' : ''}>Front Page Lead Banner</option>
-                                        <option value="front_secondary" ${editing.placement === 'front_secondary' ? 'selected' : ''}>Front Page Boxed Story (side rail)</option>
-                                        <option value="col3" ${editing.placement === 'col3' ? 'selected' : ''}>3-Column Story (continuation scroll)</option>
-                                        <option value="col2" ${editing.placement === 'col2' ? 'selected' : ''}>2-Column Feature (continuation scroll)</option>
-                                        <option value="col1" ${editing.placement === 'col1' ? 'selected' : ''}>1-Column Brief (continuation scroll)</option>
+                                        <option value="lead" ${editing.placement === 'lead' ? 'selected' : ''}>👑 Front Page Lead Banner (Main Top Headline — Only 1 active story)</option>
+                                        <option value="front_secondary" ${editing.placement === 'front_secondary' ? 'selected' : ''}>📰 Front Page Side Rail (Boxed story next to lead)</option>
+                                        <option value="col3" ${editing.placement === 'col3' ? 'selected' : ''}>📑 Standard 3-Column Story (Main newspaper scroll)</option>
+                                        <option value="col2" ${editing.placement === 'col2' ? 'selected' : ''}>📖 Wide 2-Column Feature (Main newspaper scroll)</option>
+                                        <option value="col1" ${editing.placement === 'col1' ? 'selected' : ''}>📌 1-Column Brief Report (Main newspaper scroll)</option>
                                     </select>
+                                    <div class="admin-lead-help-box">
+                                        ⭐ <strong>Front Page Lead Banner:</strong> This makes this story the massive headline that dominates the top of Delhi News Live. Only one story can be the Lead Banner at a time. Selecting this automatically transitions the previous lead story to the newspaper scroll.
+                                    </div>
+                                </div>
+
+                                <!-- Column Pin — only meaningful for col3 standard scroll stories -->
+                                <div id="columnPinGroup" style="${editing.placement === 'col3' || !editing.placement ? '' : 'display:none;'}">
+                                    <span class="field-label">📌 Column Position (3-Column Rows)</span>
+                                    <select id="storyColumnPin" class="input-standard">
+                                        <option value="auto"  ${(editing.column_pin || 'auto') === 'auto'   ? 'selected' : ''}>↔ Auto — Fill naturally in sequence</option>
+                                        <option value="left"  ${(editing.column_pin || 'auto') === 'left'   ? 'selected' : ''}>◀ Left Column — Always place in left slot</option>
+                                        <option value="centre" ${(editing.column_pin || 'auto') === 'centre' ? 'selected' : ''}>■ Centre Column — Always place in centre slot</option>
+                                        <option value="right" ${(editing.column_pin || 'auto') === 'right'  ? 'selected' : ''}>▶ Right Column — Always place in right slot</option>
+                                    </select>
+                                    <p style="font-family: var(--font-condensed); font-size: 11px; color: var(--color-stone); margin-top: 0.25rem; letter-spacing: 0.08em;">Pin this story to a specific column slot within its 3-col row. Auto-fill stories fill remaining slots in sort order.</p>
                                 </div>
                             </div>
 
@@ -1198,18 +1238,37 @@ Besides, he has been editing several other english magazines and periodicals as 
                     </h2>
 
                     <div style="margin-top: 0.5rem;">
-                        ${articles.map(art => `
-                            <div class="story-table-row">
+                        ${articles.map((art, artIdx) => {
+                            const isLead = (art.placement || '').toString().trim().toLowerCase() === 'lead';
+                            const pinLabel = art.column_pin && art.column_pin !== 'auto' ? ` · 📌 ${art.column_pin.charAt(0).toUpperCase() + art.column_pin.slice(1)} col` : '';
+                            return `
+                            <div class="story-table-row ${isLead ? 'story-table-row--lead' : ''}">
+                                <!-- Reorder arrows -->
+                                <div style="display: flex; flex-direction: column; gap: 2px; margin-right: 0.5rem; flex-shrink: 0;">
+                                    <button class="btn-reorder-story" data-id="${art.id}" data-dir="up"
+                                        title="Move story up"
+                                        style="background: none; border: 1px solid var(--color-rule); border-radius: 3px; padding: 2px 6px; font-size: 12px; cursor: pointer; line-height: 1; color: var(--color-ink); ${artIdx === 0 ? 'opacity: 0.25; pointer-events: none;' : ''}">▲</button>
+                                    <button class="btn-reorder-story" data-id="${art.id}" data-dir="down"
+                                        title="Move story down"
+                                        style="background: none; border: 1px solid var(--color-rule); border-radius: 3px; padding: 2px 6px; font-size: 12px; cursor: pointer; line-height: 1; color: var(--color-ink); ${artIdx === articles.length - 1 ? 'opacity: 0.25; pointer-events: none;' : ''}">▼</button>
+                                </div>
                                 <div style="flex: 1; min-width: 260px;">
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem; flex-wrap: wrap;">
+                                        ${isLead ? `<span class="badge-lead-banner">👑 LEAD BANNER</span>` : ''}
                                         ${art.is_breaking ? `<span class="breaking-status-badge">⚡ BREAKING</span>` : ''}
+                                        <span style="font-family: var(--font-condensed); font-size: 10px; color: var(--color-stone); background: var(--color-tint); border: 1px solid var(--color-rule); border-radius: 3px; padding: 1px 5px; letter-spacing: 0.06em;">#${art.sort_order || 0}</span>
                                         <p style="font-family: var(--font-serifhead); font-weight: 700; font-size: 16px;">${art.headline}</p>
                                     </div>
                                     <p style="font-family: var(--font-condensed); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--color-stone);">
-                                        ${art.section} · ${art.placement || 'col3'} · Layout: <strong>${art.image_layout || 'top'}</strong> · By: <strong>${art.author_name || 'SYED WAJID'}</strong> · 👁️ ${art.views || 0} views · ${art.published ? 'Published' : 'Draft'}
+                                        ${art.section} · ${isLead ? '<strong style="color: #b45309;">Front Page Lead</strong>' : (art.placement || 'col3')}${pinLabel} · Layout: <strong>${art.image_layout || 'top'}</strong> · By: <strong>${art.author_name || 'SYED WAJID'}</strong> · 👁️ ${art.views || 0} views · ${art.published ? 'Published' : 'Draft'}
                                     </p>
                                 </div>
                                 <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center;">
+                                    ${!isLead ? `
+                                        <button class="btn-make-lead btn-set-lead" data-id="${art.id}" style="font-size: 11px; padding: 0.35rem 0.6rem;">
+                                            👑 Make Lead
+                                        </button>
+                                    ` : ''}
                                     <button class="btn-secondary btn-toggle-breaking" data-id="${art.id}" data-breaking="${art.is_breaking ? 'true' : 'false'}" style="font-size: 11px; padding: 0.35rem 0.6rem;">
                                         ${art.is_breaking ? 'Unset Breaking' : 'Set Breaking'}
                                     </button>
@@ -1217,7 +1276,8 @@ Besides, he has been editing several other english magazines and periodicals as 
                                     <button class="btn-danger btn-delete-story" data-id="${art.id}">Delete</button>
                                 </div>
                             </div>
-                        `).join('')}
+                            `;
+                        }).join('')}
                     </div>
                 </section>
 
@@ -1564,11 +1624,14 @@ Besides, he has been editing several other english magazines and periodicals as 
             });
 
             // Layout Picker Radio Card Selection
-            document.querySelectorAll('.layout-picker-card input[type="radio"]').forEach(radio => {
-                radio.addEventListener('change', () => {
-                    document.querySelectorAll('.layout-picker-card').forEach(card => card.classList.remove('active'));
-                    const parentCard = radio.closest('.layout-picker-card');
-                    if (parentCard) parentCard.classList.add('active');
+            document.querySelectorAll('.layout-picker-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const radio = card.querySelector('input[type="radio"]');
+                    if (radio) {
+                        radio.checked = true;
+                        document.querySelectorAll('.layout-picker-card').forEach(c => c.classList.remove('active'));
+                        card.classList.add('active');
+                    }
                 });
             });
 
@@ -1714,31 +1777,86 @@ Besides, he has been editing several other english magazines and periodicals as 
                 storyForm.addEventListener('submit', async (e) => {
                     e.preventDefault();
                     const submitBtn = storyForm.querySelector('button[type="submit"]');
-                    if (submitBtn) submitBtn.innerText = 'Publishing...';
+                    const origBtnText = submitBtn ? submitBtn.innerText : 'Save story';
+
+                    const imgUrl = document.getElementById('storyImage')?.value || '';
+                    if (imgUrl === 'Uploading to Supabase Storage...') {
+                        alert('Your photo is still processing/uploading. Please wait a moment before saving.');
+                        return;
+                    }
+
+                    if (submitBtn) {
+                        submitBtn.innerText = 'Publishing story...';
+                        submitBtn.disabled = true;
+                    }
 
                     const selectedLayoutRadio = document.querySelector('input[name="storyImageLayout"]:checked');
                     const selectedLayout = selectedLayoutRadio ? selectedLayoutRadio.value : 'top';
+
+                    const selectedPlacement = document.getElementById('storyPlacement').value;
+                    const columnPinEl = document.getElementById('storyColumnPin');
+                    const selectedColumnPin = (selectedPlacement === 'col3' && columnPinEl) ? columnPinEl.value : 'auto';
 
                     const updated = {
                         ...this.editingArticle,
                         headline: document.getElementById('storyHeadline').value,
                         standfirst: document.getElementById('storyStandfirst').value,
                         section: document.getElementById('storySection').value,
-                        placement: document.getElementById('storyPlacement').value,
+                        placement: selectedPlacement,
+                        column_pin: selectedColumnPin,
                         author_name: document.getElementById('storyAuthor').value || 'SYED WAJID',
                         slug: document.getElementById('storySlug').value || window.DNLDataStore.slugify(document.getElementById('storyHeadline').value),
-                        image_url: document.getElementById('storyImage').value,
+                        image_url: imgUrl,
                         image_caption: document.getElementById('storyCaption').value,
                         image_layout: selectedLayout,
                         is_breaking: document.getElementById('storyIsBreaking') ? document.getElementById('storyIsBreaking').checked : false,
                         body: document.getElementById('storyBody').value,
                         published: document.getElementById('storyPublished').checked
                     };
-                    await window.DNLDataStore.saveArticle(updated);
-                    this.editingArticle = null;
-                    this.render();
+
+                    try {
+                        await window.DNLDataStore.saveArticle(updated);
+                        this.editingArticle = null;
+                        this.render();
+                        alert(`✓ Story "${updated.headline}" saved and published successfully!`);
+                    } catch (saveErr) {
+                        alert('Could not save story: ' + (saveErr.message || saveErr) + '\n\nPlease check your inputs and try again.');
+                    } finally {
+                        if (submitBtn) {
+                            submitBtn.innerText = origBtnText;
+                            submitBtn.disabled = false;
+                        }
+                    }
                 });
             }
+
+            // Set as Lead Banner Button in Story List
+            document.querySelectorAll('.btn-set-lead').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.getAttribute('data-id');
+                    const art = window.DNLDataStore.getArticles().find(a => a.id === id);
+                    if (art) {
+                        if (confirm(`Make "${art.headline}" the Front Page Lead Banner?\n(The previous lead story will be automatically moved to the standard newspaper scroll)`)) {
+                            btn.innerText = 'Updating...';
+                            btn.disabled = true;
+                            let supabaseWarn = null;
+                            try {
+                                await window.DNLDataStore.saveArticle({ ...art, placement: 'lead' });
+                            } catch (err) {
+                                // saveArticle already wrote to localStorage before throwing.
+                                // Log the Supabase error but do not abort — show the updated list.
+                                supabaseWarn = err.message || String(err);
+                                console.warn('⚠️ Make Lead: Supabase sync warning (local save succeeded):', supabaseWarn);
+                            }
+                            // Always re-render so admin sees the correct state
+                            this.render();
+                            if (supabaseWarn) {
+                                console.warn('Make Lead set locally. Supabase sync note:', supabaseWarn);
+                            }
+                        }
+                    }
+                });
+            });
 
             // Edit Story Buttons
             document.querySelectorAll('.btn-edit-story').forEach(btn => {
@@ -1765,6 +1883,27 @@ Besides, he has been editing several other english magazines and periodicals as 
                     }
                 });
             });
+
+            // Reorder (↑/↓) Buttons in Story List
+            document.querySelectorAll('.btn-reorder-story').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.getAttribute('data-id');
+                    const dir = btn.getAttribute('data-dir');
+                    btn.style.opacity = '0.4';
+                    btn.disabled = true;
+                    await window.DNLDataStore.reorderArticle(id, dir);
+                    this.render();
+                });
+            });
+
+            // Show/hide Column Pin when Placement changes in the editor form
+            const placementSel = document.getElementById('storyPlacement');
+            const colPinGroup  = document.getElementById('columnPinGroup');
+            if (placementSel && colPinGroup) {
+                placementSel.addEventListener('change', () => {
+                    colPinGroup.style.display = placementSel.value === 'col3' ? '' : 'none';
+                });
+            }
 
             // Toggle Breaking News Button in Story List
             document.querySelectorAll('.btn-toggle-breaking').forEach(btn => {

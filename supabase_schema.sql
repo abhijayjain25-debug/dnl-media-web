@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS public.articles (
     views INTEGER DEFAULT 0,
     author_name TEXT DEFAULT 'SYED WAJID',
     placement TEXT DEFAULT 'col3',
+    column_pin TEXT DEFAULT 'auto',
     sort_order INTEGER DEFAULT 0,
     published BOOLEAN DEFAULT true,
     published_at TIMESTAMPTZ,
@@ -69,6 +70,7 @@ Besides, he has been editing several other english magazines and periodicals as 
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS image_layout TEXT DEFAULT 'top';
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS is_breaking BOOLEAN DEFAULT false;
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS column_pin TEXT DEFAULT 'auto';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS rni_line TEXT DEFAULT 'RNI : DELENG2016/66892';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS date_mode TEXT DEFAULT 'auto';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS custom_date TEXT DEFAULT '';

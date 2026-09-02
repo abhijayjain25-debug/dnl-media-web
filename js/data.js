@@ -514,7 +514,19 @@ class DataStore {
                 await this.supabase.from('settings').upsert({ id: 1, ...DEFAULT_SETTINGS, interviews_visible: true });
             }
 
-            // 2. Sync Articles
+            // 2. Check native columns & Sync Articles
+            if (this.supabase) {
+                try {
+                    const { error: testColErr } = await this.supabase
+                        .from('articles')
+                        .select('image_layout')
+                        .limit(1);
+                    this.schemaHasLayoutColumns = !testColErr;
+                } catch (e) {
+                    this.schemaHasLayoutColumns = false;
+                }
+            }
+
             const { data: articlesData, error: articlesError } = await this.supabase
                 .from('articles')
                 .select('*')
@@ -522,13 +534,45 @@ class DataStore {
 
             if (!articlesError && articlesData) {
                 if (articlesData.length > 0) {
-                    const formatted = articlesData.map(a => ({
-                        ...a,
-                        image_layout: a.image_layout || 'top',
-                        is_breaking: !!a.is_breaking,
-                        views: parseInt(a.views, 10) || 0
-                    }));
-                    localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(formatted));
+                    const localArticles = this.getArticles();
+                    const formatted = articlesData.map(a => {
+                        let layout = a.image_layout;
+                        let breaking = a.is_breaking;
+                        let views = a.views;
+                        let caption = a.image_caption || '';
+
+                        // If native columns were missing, check if caption had metadata
+                        const metaMatch = caption.match(/<!--dnl:(.*?)-->/);
+                        if (metaMatch) {
+                            try {
+                                const meta = JSON.parse(metaMatch[1]);
+                                if (!layout && meta.layout) layout = meta.layout;
+                                if (typeof breaking !== 'boolean' && typeof meta.breaking === 'boolean') breaking = meta.breaking;
+                                if ((views === undefined || views === null) && meta.views !== undefined) views = meta.views;
+                            } catch (e) {}
+                            caption = caption.replace(/<!--dnl:.*?-->/g, '').trim();
+                        }
+
+                        // Preserving existing cached local layout if not found above
+                        const loc = localArticles.find(l => l.id === a.id);
+                        if (!layout && loc && loc.image_layout) {
+                            layout = loc.image_layout;
+                        }
+
+                        return {
+                            ...a,
+                            image_caption: caption,
+                            image_layout: layout || 'top',
+                            is_breaking: !!breaking,
+                            views: parseInt(views, 10) || 0
+                        };
+                    });
+
+                    try {
+                        localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(formatted));
+                    } catch (quotaErr) {
+                        console.warn('⚠️ LocalStorage quota warning in sync:', quotaErr);
+                    }
                 } else {
                     // Supabase articles table is empty -> seed initial articles to Supabase
                     console.log('🌱 Seeding initial articles to Supabase backend...');
@@ -574,9 +618,22 @@ class DataStore {
     async seedArticlesToSupabase() {
         if (!this.supabase) return;
         try {
+            let seedPayload = INITIAL_ARTICLES;
+            if (this.schemaHasLayoutColumns === false) {
+                seedPayload = INITIAL_ARTICLES.map(art => {
+                    const clean = { ...art };
+                    const metaTag = `<!--dnl:{"layout":"${art.image_layout || 'top'}","breaking":${!!art.is_breaking},"views":${art.views || 0}}-->`;
+                    clean.image_caption = art.image_caption ? `${art.image_caption} ${metaTag}` : metaTag;
+                    delete clean.image_layout;
+                    delete clean.is_breaking;
+                    delete clean.views;
+                    return clean;
+                });
+            }
+
             const { error } = await this.supabase
                 .from('articles')
-                .upsert(INITIAL_ARTICLES, { onConflict: 'id' });
+                .upsert(seedPayload, { onConflict: 'id' });
 
             if (error) {
                 console.warn('⚠️ Failed to seed initial articles to Supabase:', error.message);
@@ -692,6 +749,8 @@ class DataStore {
             const articles = data ? JSON.parse(data) : INITIAL_ARTICLES;
             return articles.map(a => ({
                 ...a,
+                placement: (a.placement || 'col3').toString().trim().toLowerCase(),
+                column_pin: (a.column_pin || 'auto').toString().trim().toLowerCase(),
                 image_layout: a.image_layout || 'top',
                 is_breaking: !!a.is_breaking,
                 views: parseInt(a.views, 10) || 0
@@ -774,10 +833,19 @@ class DataStore {
 
     async saveArticle(article) {
         const articles = this.getArticles();
-        const slug = article.slug || this.slugify(article.headline);
+        let slug = article.slug ? this.slugify(article.slug) : this.slugify(article.headline);
+        // Ensure slug does not collide with another existing article with a different id
+        if (articles.some(a => a.slug === slug && a.id !== article.id)) {
+            slug = `${slug}-${Math.random().toString(36).substr(2, 4)}`;
+        }
+
+        const normalizedPlacement = (article.placement || 'col3').toString().trim().toLowerCase();
+
         const toSave = {
             ...article,
             slug,
+            placement: normalizedPlacement,
+            column_pin: (article.column_pin || 'auto').toString().trim().toLowerCase(),
             image_layout: article.image_layout || 'top',
             is_breaking: !!article.is_breaking,
             views: parseInt(article.views, 10) || 0,
@@ -807,13 +875,26 @@ class DataStore {
             });
         }
 
-        // 1. Optimistically update local storage
-        localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+        // If this article is marked as Lead Banner, demote any other lead to col3
+        if (toSave.placement === 'lead') {
+            articles.forEach(a => {
+                if (a.id !== toSave.id && (a.placement || '').toString().trim().toLowerCase() === 'lead') {
+                    a.placement = 'col3';
+                }
+            });
+        }
+
+        // 1. Optimistically update local storage safely
+        try {
+            localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+        } catch (storageErr) {
+            console.warn('⚠️ LocalStorage storage note in saveArticle:', storageErr);
+        }
 
         // 2. Persist to Supabase
         if (this.supabase) {
             try {
-                const dbArticle = {
+                let dbArticle = {
                     id: toSave.id,
                     slug: toSave.slug,
                     headline: toSave.headline,
@@ -822,25 +903,60 @@ class DataStore {
                     body: toSave.body || '',
                     image_url: toSave.image_url || '',
                     image_caption: toSave.image_caption || '',
-                    image_layout: toSave.image_layout || 'top',
-                    is_breaking: !!toSave.is_breaking,
-                    views: toSave.views || 0,
                     author_name: toSave.author_name || 'SYED WAJID',
                     placement: toSave.placement || 'col3',
+                    column_pin: toSave.column_pin || 'auto',
                     sort_order: toSave.sort_order || 0,
                     published: typeof toSave.published === 'boolean' ? toSave.published : true,
                     published_at: toSave.published_at || new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 };
 
-                const { error } = await this.supabase
+                // Attempt native columns if schema supports them or not yet known
+                if (this.schemaHasLayoutColumns !== false) {
+                    dbArticle.image_layout = toSave.image_layout || 'top';
+                    dbArticle.is_breaking = !!toSave.is_breaking;
+                    dbArticle.views = toSave.views || 0;
+                }
+
+                let { error } = await this.supabase
                     .from('articles')
                     .upsert(dbArticle, { onConflict: 'id' });
 
+                // If native columns do not exist in Supabase, retry without them
+                if (error && (error.message.includes('image_layout') || error.message.includes('column_pin') || error.code === '42703')) {
+                    console.warn('ℹ️ One or more native columns not detected in Supabase, saving with metadata safety net...');
+                    this.schemaHasLayoutColumns = false;
+                    const cleanCap = (toSave.image_caption || '').replace(/<!--dnl:.*?-->/g, '').trim();
+                    const metaTag = `<!--dnl:{"layout":"${toSave.image_layout || 'top'}","breaking":${!!toSave.is_breaking},"views":${toSave.views || 0},"pin":"${toSave.column_pin || 'auto'}"}-->`;
+                    delete dbArticle.image_layout;
+                    delete dbArticle.is_breaking;
+                    delete dbArticle.views;
+                    delete dbArticle.column_pin;
+                    dbArticle.image_caption = cleanCap ? `${cleanCap} ${metaTag}` : metaTag;
+
+                    const retry = await this.supabase
+                        .from('articles')
+                        .upsert(dbArticle, { onConflict: 'id' });
+                    error = retry.error;
+                } else if (!error) {
+                    this.schemaHasLayoutColumns = true;
+                }
+
                 if (error) {
-                    console.warn('⚠️ Supabase article save error:', error.message);
+                    console.error('❌ Supabase article save error:', error.message);
+                    throw new Error('Supabase save failed: ' + error.message);
                 } else {
                     console.log('✅ Article successfully saved to Supabase:', toSave.headline);
+                }
+
+                // If this is lead banner, demote any other lead in Supabase
+                if (toSave.placement === 'lead') {
+                    await this.supabase
+                        .from('articles')
+                        .update({ placement: 'col3' })
+                        .eq('placement', 'lead')
+                        .neq('id', toSave.id);
                 }
 
                 if (toSave.is_breaking) {
@@ -851,6 +967,7 @@ class DataStore {
                 }
             } catch (err) {
                 console.error('❌ Error saving article to Supabase:', err);
+                throw err;
             }
         }
 
@@ -881,6 +998,55 @@ class DataStore {
         }
 
         return true;
+    }
+
+    /**
+     * Swap sort_order between a story and its immediate neighbour.
+     * direction: 'up' moves the story earlier (lower sort_order),
+     *            'down' moves it later (higher sort_order).
+     * Persists both swapped records to localStorage and Supabase.
+     */
+    async reorderArticle(id, direction) {
+        const articles = this.getArticles(); // already sorted by sort_order
+        const idx = articles.findIndex(a => a.id === id);
+        if (idx === -1) return;
+
+        const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (swapIdx < 0 || swapIdx >= articles.length) return;
+
+        // Swap sort_order values
+        const aOrder = articles[idx].sort_order || 0;
+        const bOrder = articles[swapIdx].sort_order || 0;
+        // If they happen to share the same sort_order, nudge them apart
+        const newA = bOrder === aOrder ? (direction === 'up' ? bOrder - 1 : bOrder + 1) : bOrder;
+        const newB = aOrder;
+
+        // Capture IDs before re-sorting (indices will shift)
+        const idA = articles[idx].id;
+        const idB = articles[swapIdx].id;
+
+        articles[idx].sort_order = newA;
+        articles[swapIdx].sort_order = newB;
+
+        // Re-sort so localStorage stays consistent
+        articles.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+        localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+
+        // Persist both rows to Supabase (use IDs captured before re-sort)
+        if (this.supabase) {
+            const pairIds = [idA, idB];
+            const pairArticles = this.getArticles().filter(a => pairIds.includes(a.id));
+            for (const art of pairArticles) {
+                try {
+                    await this.supabase
+                        .from('articles')
+                        .update({ sort_order: art.sort_order })
+                        .eq('id', art.id);
+                } catch (err) {
+                    console.warn('⚠️ Supabase sort_order sync warning:', err);
+                }
+            }
+        }
     }
 
     slugify(text) {
@@ -1098,6 +1264,38 @@ class DataStore {
         }
     }
 
+    async compressImageFile(file, maxWidth = 1280, maxHeight = 1280, quality = 0.78) {
+        if (!file || !file.type || !file.type.startsWith('image/')) return null;
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    let { width, height } = img;
+                    if (width > maxWidth || height > maxHeight) {
+                        if (width > height) {
+                            height = Math.round((height * maxWidth) / width);
+                            width = maxWidth;
+                        } else {
+                            width = Math.round((width * maxHeight) / height);
+                            height = maxHeight;
+                        }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.onerror = () => resolve(e.target.result || '');
+                img.src = e.target.result;
+            };
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(file);
+        });
+    }
+
     /**
      * Upload a binary file (Video / Image) directly to Supabase Storage bucket 'media'.
      * Returns permanent public CDN HTTPS URL.
@@ -1127,11 +1325,17 @@ class DataStore {
                         return pubData.publicUrl;
                     }
                 } else if (error) {
-                    console.warn('⚠️ Supabase Storage upload issue (falling back to DataURL):', error.message);
+                    console.warn('⚠️ Supabase Storage upload note (falling back to compressed storage):', error.message);
                 }
             } catch (err) {
                 console.warn('⚠️ Supabase Storage exception:', err);
             }
+        }
+
+        // For photos/images, compress before returning data URL to guarantee it never exceeds localStorage quota
+        if (file.type && file.type.startsWith('image/')) {
+            const compressed = await this.compressImageFile(file);
+            if (compressed) return compressed;
         }
 
         return await this.fileToDataUrl(file);
