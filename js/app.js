@@ -366,6 +366,9 @@ Besides, he has been editing several other english magazines and periodicals as 
             const twUrl = (settings.editor_twitter && settings.editor_twitter !== 'https://twitter.com')
                 ? settings.editor_twitter
                 : 'https://x.com/journo_sufi?s=20';
+            const fbUrl = (settings.editor_facebook && settings.editor_facebook !== 'https://facebook.com')
+                ? settings.editor_facebook
+                : 'https://www.facebook.com/sufijourno';
 
             return `
                 <div class="editor-desk-section">
@@ -392,6 +395,10 @@ Besides, he has been editing several other english magazines and periodicals as 
                                 <a href="${twUrl}" target="_blank" rel="noopener noreferrer" class="editor-social-link editor-social-tw" aria-label="Syed Wajid Twitter Profile">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
                                     Twitter / X
+                                </a>
+                                <a href="${fbUrl}" target="_blank" rel="noopener noreferrer" class="editor-social-link editor-social-fb" aria-label="Syed Wajid Facebook Profile">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                    Facebook
                                 </a>
                             </div>
                         </div>
@@ -1501,6 +1508,8 @@ Besides, he has been editing several other english magazines and periodicals as 
                             <span class="field-label">Title / Role</span>
                             <input type="text" id="setting_editor_title" class="input-standard" value="${settings.editor_title || 'Editor-in-Chief & Founder'}" />
                         </div>
+                    </div>
+                    <div class="cms-grid-3" style="margin-top: 0.65rem;">
                         <div>
                             <span class="field-label">Instagram Profile URL</span>
                             <input type="url" id="setting_editor_instagram" class="input-standard" value="${(settings.editor_instagram && settings.editor_instagram !== 'https://instagram.com') ? settings.editor_instagram : 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw=='}" placeholder="https://instagram.com/sufijourno" />
@@ -1508,6 +1517,10 @@ Besides, he has been editing several other english magazines and periodicals as 
                         <div>
                             <span class="field-label">Twitter / X Profile URL</span>
                             <input type="url" id="setting_editor_twitter" class="input-standard" value="${(settings.editor_twitter && settings.editor_twitter !== 'https://twitter.com') ? settings.editor_twitter : 'https://x.com/journo_sufi?s=20'}" placeholder="https://x.com/journo_sufi" />
+                        </div>
+                        <div>
+                            <span class="field-label">Facebook Profile URL</span>
+                            <input type="url" id="setting_editor_facebook" class="input-standard" value="${(settings.editor_facebook && settings.editor_facebook !== 'https://facebook.com') ? settings.editor_facebook : 'https://www.facebook.com/sufijourno'}" placeholder="https://www.facebook.com/sufijourno" />
                         </div>
                     </div>
                     <div style="margin-top: 0.75rem;">
@@ -2151,7 +2164,8 @@ Besides, he has been editing several other english magazines and periodicals as 
                         editor_title: document.getElementById('setting_editor_title').value,
                         editor_bio: document.getElementById('setting_editor_bio').value,
                         editor_instagram: document.getElementById('setting_editor_instagram').value,
-                        editor_twitter: document.getElementById('setting_editor_twitter').value
+                        editor_twitter: document.getElementById('setting_editor_twitter').value,
+                        editor_facebook: document.getElementById('setting_editor_facebook').value
                     };
                     btnSaveSettings.innerText = 'Updating...';
                     await window.DNLDataStore.updateSettings(newSettings);

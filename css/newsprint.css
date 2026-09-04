@@ -2504,6 +2504,12 @@ button, input, select, textarea {
     color: #fff;
 }
 
+.editor-social-fb:hover {
+    background: #1877f2;
+    border-color: #1877f2;
+    color: #fff;
+}
+
 @media (max-width: 768px) {
     .editor-desk-card {
         flex-direction: column;

@@ -25,7 +25,8 @@ He has been working as an executive editor for Delhi News Live, an English daily
 
 Besides, he has been editing several other english magazines and periodicals as well.`,
     editor_instagram: "https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==",
-    editor_twitter: "https://x.com/journo_sufi?s=20"
+    editor_twitter: "https://x.com/journo_sufi?s=20",
+    editor_facebook: "https://www.facebook.com/sufijourno"
 };
 
 /**
@@ -507,7 +508,8 @@ class DataStore {
                     editor_title: settingsData.editor_title || DEFAULT_SETTINGS.editor_title,
                     editor_bio: settingsData.editor_bio || DEFAULT_SETTINGS.editor_bio,
                     editor_instagram: settingsData.editor_instagram || DEFAULT_SETTINGS.editor_instagram,
-                    editor_twitter: settingsData.editor_twitter || DEFAULT_SETTINGS.editor_twitter
+                    editor_twitter: settingsData.editor_twitter || DEFAULT_SETTINGS.editor_twitter,
+                    editor_facebook: settingsData.editor_facebook || DEFAULT_SETTINGS.editor_facebook
                 };
                 localStorage.setItem(this.STORAGE_KEY_SETTINGS, JSON.stringify(mergedSettings));
                 if (typeof settingsData.interviews_visible === 'boolean') {
@@ -764,9 +766,26 @@ class DataStore {
                     editor_bio: updated.editor_bio || '',
                     editor_instagram: updated.editor_instagram || 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==',
                     editor_twitter: updated.editor_twitter || 'https://x.com/journo_sufi?s=20',
+                    editor_facebook: updated.editor_facebook || 'https://www.facebook.com/sufijourno',
                     updated_at: new Date().toISOString()
                 };
-                await this.supabase.from('settings').upsert(dbPayload, { onConflict: 'id' });
+                const { error: upsertErr } = await this.supabase.from('settings').upsert(dbPayload, { onConflict: 'id' });
+                if (upsertErr) {
+                    console.warn('⚠️ Supabase full settings upsert warning:', upsertErr.message);
+                    // Fallback to base columns if extended columns are not yet in Supabase schema
+                    const basePayload = {
+                        id: 1,
+                        paper_name: updated.paper_name,
+                        tagline: updated.tagline,
+                        edition_line: updated.edition_line,
+                        website_line: updated.website_line,
+                        rni_line: updated.rni_line,
+                        masthead_url: updated.masthead_url,
+                        interviews_visible: this.getInterviewsVisible(),
+                        updated_at: new Date().toISOString()
+                    };
+                    await this.supabase.from('settings').upsert(basePayload, { onConflict: 'id' });
+                }
             } catch (err) {
                 console.warn('⚠️ Failed to save settings to Supabase:', err);
             }
