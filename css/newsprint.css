@@ -1323,6 +1323,24 @@ button, input, select, textarea {
     }
 }
 
+.cms-grid-4 {
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+    .cms-grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .cms-grid-4 {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
 .story-table-row {
     display: flex;
     flex-wrap: wrap;
@@ -2507,6 +2525,12 @@ button, input, select, textarea {
 .editor-social-fb:hover {
     background: #1877f2;
     border-color: #1877f2;
+    color: #fff;
+}
+
+.editor-social-blog:hover {
+    background: #f57c00;
+    border-color: #f57c00;
     color: #fff;
 }
 

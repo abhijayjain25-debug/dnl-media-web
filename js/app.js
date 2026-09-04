@@ -369,6 +369,9 @@ Besides, he has been editing several other english magazines and periodicals as 
             const fbUrl = (settings.editor_facebook && settings.editor_facebook !== 'https://facebook.com')
                 ? settings.editor_facebook
                 : 'https://www.facebook.com/sufijourno';
+            const blogUrl = (settings.editor_blog && settings.editor_blog !== 'https://blogspot.com')
+                ? settings.editor_blog
+                : 'https://sufijourno.blogspot.com/';
 
             return `
                 <div class="editor-desk-section">
@@ -399,6 +402,9 @@ Besides, he has been editing several other english magazines and periodicals as 
                                 <a href="${fbUrl}" target="_blank" rel="noopener noreferrer" class="editor-social-link editor-social-fb" aria-label="Syed Wajid Facebook Profile">
                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
                                     Facebook
+                                </a>
+                                <a href="${blogUrl}" target="_blank" rel="noopener noreferrer" class="editor-social-link editor-social-blog" aria-label="Syed Wajid Blog">
+                                    BLOG
                                 </a>
                             </div>
                         </div>
@@ -1509,7 +1515,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                             <input type="text" id="setting_editor_title" class="input-standard" value="${settings.editor_title || 'Editor-in-Chief & Founder'}" />
                         </div>
                     </div>
-                    <div class="cms-grid-3" style="margin-top: 0.65rem;">
+                    <div class="cms-grid-4" style="margin-top: 0.65rem;">
                         <div>
                             <span class="field-label">Instagram Profile URL</span>
                             <input type="url" id="setting_editor_instagram" class="input-standard" value="${(settings.editor_instagram && settings.editor_instagram !== 'https://instagram.com') ? settings.editor_instagram : 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw=='}" placeholder="https://instagram.com/sufijourno" />
@@ -1521,6 +1527,10 @@ Besides, he has been editing several other english magazines and periodicals as 
                         <div>
                             <span class="field-label">Facebook Profile URL</span>
                             <input type="url" id="setting_editor_facebook" class="input-standard" value="${(settings.editor_facebook && settings.editor_facebook !== 'https://facebook.com') ? settings.editor_facebook : 'https://www.facebook.com/sufijourno'}" placeholder="https://www.facebook.com/sufijourno" />
+                        </div>
+                        <div>
+                            <span class="field-label">Blog URL</span>
+                            <input type="url" id="setting_editor_blog" class="input-standard" value="${(settings.editor_blog && settings.editor_blog !== 'https://blogspot.com') ? settings.editor_blog : 'https://sufijourno.blogspot.com/'}" placeholder="https://sufijourno.blogspot.com/" />
                         </div>
                     </div>
                     <div style="margin-top: 0.75rem;">
@@ -2165,7 +2175,8 @@ Besides, he has been editing several other english magazines and periodicals as 
                         editor_bio: document.getElementById('setting_editor_bio').value,
                         editor_instagram: document.getElementById('setting_editor_instagram').value,
                         editor_twitter: document.getElementById('setting_editor_twitter').value,
-                        editor_facebook: document.getElementById('setting_editor_facebook').value
+                        editor_facebook: document.getElementById('setting_editor_facebook').value,
+                        editor_blog: document.getElementById('setting_editor_blog').value
                     };
                     btnSaveSettings.innerText = 'Updating...';
                     await window.DNLDataStore.updateSettings(newSettings);

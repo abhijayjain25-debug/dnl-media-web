@@ -64,6 +64,7 @@ Besides, he has been editing several other english magazines and periodicals as 
     editor_instagram TEXT DEFAULT 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==',
     editor_twitter TEXT DEFAULT 'https://x.com/journo_sufi?s=20',
     editor_facebook TEXT DEFAULT 'https://www.facebook.com/sufijourno',
+    editor_blog TEXT DEFAULT 'https://sufijourno.blogspot.com/',
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -87,6 +88,7 @@ Besides, he has been editing several other english magazines and periodicals as 
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_instagram TEXT DEFAULT 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_twitter TEXT DEFAULT 'https://x.com/journo_sufi?s=20';
 ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_facebook TEXT DEFAULT 'https://www.facebook.com/sufijourno';
+ALTER TABLE public.settings ADD COLUMN IF NOT EXISTS editor_blog TEXT DEFAULT 'https://sufijourno.blogspot.com/';
 
 -- Update existing settings row with correct website line & editor facebook if missing
 UPDATE public.settings 
@@ -97,15 +99,19 @@ UPDATE public.settings
 SET editor_facebook = 'https://www.facebook.com/sufijourno'
 WHERE editor_facebook IS NULL OR editor_facebook = '';
 
+UPDATE public.settings
+SET editor_blog = 'https://sufijourno.blogspot.com/'
+WHERE editor_blog IS NULL OR editor_blog = '';
+
 -- Insert Default Settings Row if not exists
-INSERT INTO public.settings (id, paper_name, tagline, edition_line, website_line, rni_line, date_mode, custom_date, masthead_url, interviews_visible, editor_name, editor_title, editor_bio, editor_instagram, editor_twitter, editor_facebook)
+INSERT INTO public.settings (id, paper_name, tagline, edition_line, website_line, rni_line, date_mode, custom_date, masthead_url, interviews_visible, editor_name, editor_title, editor_bio, editor_instagram, editor_twitter, editor_facebook, editor_blog)
 VALUES (1, 'Delhi News Live', 'National English Daily', 'METRO CITY', 'www.delhinewslive.co.in', 'RNI : DELENG2016/66892', 'auto', '', 'assets/logo.jpg', true, 'SYED WAJID', 'Executive Editor', 'is a seasoned and veteran journalist with an experience of more than two decades. Writing with a flair and passion; crime and politics have been his forte. He has written more than 15000 pieces comprising articles, reports, features and editorials in the past 25 years.
 
 Syed Wajid popularly known as Sufi, is a PIB accredited journalist who has contributed to various media houses including The Hindu, Times of India, Hindustan Times, National Herald, Uday India, Loksatya and Face Group.
 
 He has been working as an executive editor for Delhi News Live, an English daily.
 
-Besides, he has been editing several other english magazines and periodicals as well.', 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==', 'https://x.com/journo_sufi?s=20', 'https://www.facebook.com/sufijourno')
+Besides, he has been editing several other english magazines and periodicals as well.', 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==', 'https://x.com/journo_sufi?s=20', 'https://www.facebook.com/sufijourno', 'https://sufijourno.blogspot.com/')
 ON CONFLICT (id) DO UPDATE SET website_line = EXCLUDED.website_line;
 
 -- =============================================================================

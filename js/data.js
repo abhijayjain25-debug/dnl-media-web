@@ -26,7 +26,8 @@ He has been working as an executive editor for Delhi News Live, an English daily
 Besides, he has been editing several other english magazines and periodicals as well.`,
     editor_instagram: "https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==",
     editor_twitter: "https://x.com/journo_sufi?s=20",
-    editor_facebook: "https://www.facebook.com/sufijourno"
+    editor_facebook: "https://www.facebook.com/sufijourno",
+    editor_blog: "https://sufijourno.blogspot.com/"
 };
 
 /**
@@ -509,7 +510,8 @@ class DataStore {
                     editor_bio: settingsData.editor_bio || DEFAULT_SETTINGS.editor_bio,
                     editor_instagram: settingsData.editor_instagram || DEFAULT_SETTINGS.editor_instagram,
                     editor_twitter: settingsData.editor_twitter || DEFAULT_SETTINGS.editor_twitter,
-                    editor_facebook: settingsData.editor_facebook || DEFAULT_SETTINGS.editor_facebook
+                    editor_facebook: settingsData.editor_facebook || DEFAULT_SETTINGS.editor_facebook,
+                    editor_blog: settingsData.editor_blog || DEFAULT_SETTINGS.editor_blog
                 };
                 localStorage.setItem(this.STORAGE_KEY_SETTINGS, JSON.stringify(mergedSettings));
                 if (typeof settingsData.interviews_visible === 'boolean') {
@@ -767,6 +769,7 @@ class DataStore {
                     editor_instagram: updated.editor_instagram || 'https://www.instagram.com/sufijourno?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==',
                     editor_twitter: updated.editor_twitter || 'https://x.com/journo_sufi?s=20',
                     editor_facebook: updated.editor_facebook || 'https://www.facebook.com/sufijourno',
+                    editor_blog: updated.editor_blog || 'https://sufijourno.blogspot.com/',
                     updated_at: new Date().toISOString()
                 };
                 const { error: upsertErr } = await this.supabase.from('settings').upsert(dbPayload, { onConflict: 'id' });
