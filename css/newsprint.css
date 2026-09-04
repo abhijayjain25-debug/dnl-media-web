@@ -13,10 +13,10 @@
     --color-strip: #c4cbd5;
     --color-tint: #f2eee8;
     --color-brandred: #c41820;
-    --font-poster: "Anton", "Oswald", sans-serif;
-    --font-condensed: "Oswald", "Arial Narrow", sans-serif;
-    --font-serifhead: "PT Serif", Georgia, serif;
-    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-poster: "Times New Roman", Times, serif;
+    --font-condensed: "Times New Roman", Times, serif;
+    --font-serifhead: "Times New Roman", Times, serif;
+    --font-sans: "Times New Roman", Times, serif;
 }
 
 *, *::before, *::after {
@@ -509,8 +509,9 @@ button, input, select, textarea {
     text-align: center;
     font-family: var(--font-poster);
     font-size: 32px;
-    line-height: 0.92;
-    letter-spacing: -0.025em;
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: 0.015em;
     text-transform: uppercase;
     cursor: pointer;
 }
@@ -553,6 +554,7 @@ button, input, select, textarea {
         font-size: 30px;
     }
 }
+
 
 /* Two-column split: Main Lead Body + Side Rail */
 .story-grid-split {
@@ -606,10 +608,16 @@ button, input, select, textarea {
 }
 
 .newscols p {
-    text-align: justify;
+    text-align: left;
     -webkit-hyphens: auto;
     hyphens: auto;
     margin-bottom: 0.45rem;
+}
+
+@media (min-width: 640px) {
+    .newscols p {
+        text-align: justify;
+    }
 }
 
 .dropcap:first-letter {
@@ -683,8 +691,8 @@ button, input, select, textarea {
     font-family: var(--font-condensed);
     font-size: 19px;
     font-weight: 700;
-    line-height: 1.15;
-    letter-spacing: -0.01em;
+    line-height: 1.18;
+    letter-spacing: 0.012em;
     text-transform: uppercase;
 }
 
@@ -700,13 +708,19 @@ button, input, select, textarea {
 
 .boxed-body {
     margin-top: 0.4rem;
-    text-align: justify;
+    text-align: left;
     -webkit-hyphens: auto;
     hyphens: auto;
     font-family: var(--font-serifhead);
     font-size: 13px;
     line-height: 1.42;
     color: var(--color-ink);
+}
+
+@media (min-width: 640px) {
+    .boxed-body {
+        text-align: justify;
+    }
 }
 
 /* ==========================================================================
@@ -855,9 +869,9 @@ button, input, select, textarea {
     font-family: var(--font-condensed);
     font-size: 20px;
     font-weight: 700;
-    line-height: 1.15;
+    line-height: 1.18;
     text-transform: uppercase;
-    letter-spacing: -0.01em;
+    letter-spacing: 0.012em;
 }
 
 .broadsheet-headline a:hover {
@@ -866,13 +880,19 @@ button, input, select, textarea {
 
 .broadsheet-body-text {
     margin-top: 0.45rem;
-    text-align: justify;
+    text-align: left;
     -webkit-hyphens: auto;
     hyphens: auto;
     font-family: var(--font-serifhead);
     font-size: 13px;
     line-height: 1.42;
     color: var(--color-ink);
+}
+
+@media (min-width: 640px) {
+    .broadsheet-body-text {
+        text-align: justify;
+    }
 }
 
 .broadsheet-item-footer {
@@ -932,9 +952,10 @@ button, input, select, textarea {
 .inside-lead-title {
     font-family: var(--font-poster);
     font-size: 28px;
-    line-height: 0.96;
+    font-weight: 700;
+    line-height: 1.12;
     text-transform: uppercase;
-    letter-spacing: -0.01em;
+    letter-spacing: 0.015em;
 }
 
 @media (min-width: 640px) {
@@ -972,8 +993,10 @@ button, input, select, textarea {
     margin-top: 0.35rem;
     font-family: var(--font-poster);
     font-size: 34px;
+    font-weight: 700;
     text-transform: uppercase;
-    line-height: 0.95;
+    line-height: 1.10;
+    letter-spacing: 0.012em;
 }
 
 @media (min-width: 640px) {
@@ -1015,7 +1038,13 @@ button, input, select, textarea {
 
 .article-detail-body p {
     margin-bottom: 0.75rem;
-    text-align: justify;
+    text-align: left;
+}
+
+@media (min-width: 640px) {
+    .article-detail-body p {
+        text-align: justify;
+    }
 }
 
 .back-link {
@@ -1042,8 +1071,10 @@ button, input, select, textarea {
     padding-bottom: 0.35rem;
     font-family: var(--font-poster);
     font-size: 32px;
+    font-weight: 700;
     text-transform: uppercase;
-    line-height: 1;
+    line-height: 1.12;
+    letter-spacing: 0.015em;
 }
 
 @media (min-width: 640px) {
@@ -1083,8 +1114,10 @@ button, input, select, textarea {
 .search-item h2 {
     font-family: var(--font-poster);
     font-size: 22px;
+    font-weight: 700;
     text-transform: uppercase;
-    line-height: 1;
+    line-height: 1.15;
+    letter-spacing: 0.015em;
 }
 
 .search-item h2 a:hover {
@@ -1113,8 +1146,10 @@ button, input, select, textarea {
 .auth-title {
     font-family: var(--font-poster);
     font-size: 30px;
+    font-weight: 700;
     text-transform: uppercase;
-    line-height: 1;
+    line-height: 1.15;
+    letter-spacing: 0.015em;
 }
 
 .auth-subtitle {
@@ -1229,8 +1264,10 @@ button, input, select, textarea {
 .newsroom-title {
     font-family: var(--font-poster);
     font-size: 26px;
+    font-weight: 700;
     text-transform: uppercase;
-    line-height: 1;
+    line-height: 1.15;
+    letter-spacing: 0.015em;
 }
 
 @media (min-width: 640px) {
@@ -1456,9 +1493,10 @@ button, input, select, textarea {
 .cont-headline {
     font-family: var(--font-poster);
     font-size: 22px;
-    line-height: 0.96;
+    font-weight: 700;
+    line-height: 1.14;
     text-transform: uppercase;
-    letter-spacing: -0.015em;
+    letter-spacing: 0.015em;
     margin-top: 0.25rem;
 }
 
@@ -1477,9 +1515,9 @@ button, input, select, textarea {
     font-family: var(--font-condensed);
     font-size: 17px;
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1.18;
     text-transform: uppercase;
-    letter-spacing: -0.01em;
+    letter-spacing: 0.012em;
     margin-top: 0.25rem;
 }
 
@@ -1517,15 +1555,22 @@ button, input, select, textarea {
     }
 }
 
+
 /* Continuation body text */
 .cont-body {
     margin-top: 0.4rem;
     font-family: var(--font-serifhead);
     font-size: 13px;
     line-height: 1.42;
-    text-align: justify;
+    text-align: left;
     -webkit-hyphens: auto;
     hyphens: auto;
+}
+
+@media (min-width: 640px) {
+    .cont-body {
+        text-align: justify;
+    }
 }
 
 .cont-body p {
@@ -1736,9 +1781,9 @@ button, input, select, textarea {
     font-family: var(--font-condensed);
     font-size: 18px;
     font-weight: 700;
-    line-height: 1.1;
+    line-height: 1.18;
     text-transform: uppercase;
-    letter-spacing: -0.01em;
+    letter-spacing: 0.012em;
     margin-bottom: 0.3rem;
 }
 
@@ -2156,6 +2201,37 @@ button, input, select, textarea {
     border-color: var(--color-ink);
     background: #fdf5e8;
     box-shadow: inset 0 0 0 1px var(--color-ink);
+}
+
+/* Floating Toast Notification */
+.dnl-toast {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    z-index: 99999;
+    background: #111827;
+    color: #fff;
+    padding: 0.85rem 1.4rem;
+    font-family: var(--font-condensed);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-left: 5px solid #059669;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    opacity: 0;
+    transform: translateY(12px);
+    transition: all 0.25s ease;
+    pointer-events: none;
+}
+
+.dnl-toast.dnl-toast--visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.dnl-toast--error {
+    border-left-color: #dc2626;
 }
 
 .layout-preview-box {

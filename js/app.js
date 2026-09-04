@@ -60,6 +60,21 @@
                 .replace(/'/g, '&#039;');
         }
 
+        showToast(msg, type = 'success') {
+            const existing = document.getElementById('dnl-toast');
+            if (existing) existing.remove();
+            const toast = document.createElement('div');
+            toast.id = 'dnl-toast';
+            toast.className = `dnl-toast ${type === 'error' ? 'dnl-toast--error' : 'dnl-toast--success'}`;
+            toast.innerText = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.classList.add('dnl-toast--visible'), 10);
+            setTimeout(() => {
+                toast.classList.remove('dnl-toast--visible');
+                setTimeout(() => toast.remove(), 400);
+            }, 3500);
+        }
+
         getFormattedDate(settings) {
             settings = settings || window.DNLDataStore.getSettings();
             if (settings && settings.date_mode === 'manual' && settings.custom_date && settings.custom_date.trim()) {
@@ -1624,8 +1639,16 @@ Besides, he has been editing several other english magazines and periodicals as 
             });
 
             // Layout Picker Radio Card Selection
+            document.querySelectorAll('input[name="storyImageLayout"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    document.querySelectorAll('.layout-picker-card').forEach(c => c.classList.remove('active'));
+                    const card = radio.closest('.layout-picker-card');
+                    if (card) card.classList.add('active');
+                });
+            });
+
             document.querySelectorAll('.layout-picker-card').forEach(card => {
-                card.addEventListener('click', () => {
+                card.addEventListener('click', (e) => {
                     const radio = card.querySelector('input[type="radio"]');
                     if (radio) {
                         radio.checked = true;
@@ -1818,9 +1841,14 @@ Besides, he has been editing several other english magazines and periodicals as 
                         await window.DNLDataStore.saveArticle(updated);
                         this.editingArticle = null;
                         this.render();
-                        alert(`✓ Story "${updated.headline}" saved and published successfully!`);
+                        this.showToast(`✓ Story "${updated.headline}" saved and published!`);
                     } catch (saveErr) {
-                        alert('Could not save story: ' + (saveErr.message || saveErr) + '\n\nPlease check your inputs and try again.');
+                        const errMsg = saveErr.message || String(saveErr);
+                        if (errMsg.toLowerCase().includes('row-level security') || errMsg.toLowerCase().includes('policy')) {
+                            this.showToast('Login session expired. Please sign out and log in again.', 'error');
+                        } else {
+                            this.showToast('Could not save story: ' + errMsg, 'error');
+                        }
                     } finally {
                         if (submitBtn) {
                             submitBtn.innerText = origBtnText;
