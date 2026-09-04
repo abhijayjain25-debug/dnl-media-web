@@ -134,6 +134,8 @@
                 mainContent = this.renderSearchPage();
             } else if (route === '/interviews') {
                 mainContent = this.renderInterviewsPage();
+            } else if (route === '/gallery' || route === '/archive') {
+                mainContent = this.renderGalleryPage();
             } else if (route === '/admin' || route === '/auth') {
                 const session = window.DNLDataStore.getAuthSession();
                 if (!session) {
@@ -245,6 +247,7 @@
             const isHome = current === '/' || current === '';
             const isSearch = current === '/search';
             const isVideos = current === '/interviews';
+            const isGallery = current === '/gallery' || current === '/archive';
 
             return `
                 <nav class="nav-bar">
@@ -254,6 +257,7 @@
                             ${s}
                         </a>
                     `).join('')}
+                    <a href="#/gallery" class="nav-link ${isGallery ? 'active' : ''}">Gallery/Archive</a>
                     <a href="#/interviews" class="nav-link ${isVideos ? 'active' : ''}">Videos</a>
                     <a href="#/search" class="nav-link ${isSearch ? 'active' : ''}">Search</a>
                 </nav>
@@ -525,6 +529,95 @@ Besides, he has been editing several other english magazines and periodicals as 
                         `).join('')}
                     </div>
                     <p style="margin-top: 1.5rem;"><a href="#/" class="back-link">← Return to Front Page</a></p>
+                </div>
+            `;
+        }
+
+        formatDisplayDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const parts = dateStr.split('-');
+                if (parts.length === 3) {
+                    const year = parts[0];
+                    const monthIdx = parseInt(parts[1], 10) - 1;
+                    const day = parseInt(parts[2], 10);
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    if (months[monthIdx]) {
+                        return `${day < 10 ? '0' + day : day} ${months[monthIdx]} ${year}`;
+                    }
+                }
+                const d = new Date(dateStr);
+                if (!isNaN(d.getTime())) {
+                    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                }
+            } catch (e) {}
+            return dateStr;
+        }
+
+        /* Standalone route: /gallery or /archive */
+        renderGalleryPage() {
+            const clippings = window.DNLDataStore.getClippings();
+
+            return `
+                <div class="gallery-page-container">
+                    <div style="border-bottom: 2px solid var(--color-ink); padding-bottom: 0.5rem; margin-bottom: 1.25rem; display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem;">
+                        <div>
+                            <span style="font-family: var(--font-condensed); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.18em; color: var(--color-brandred);">Front-Page Archive</span>
+                            <h1 style="font-family: var(--font-poster); font-size: 38px; text-transform: uppercase; line-height: 1.08; margin-top: 0.2rem;">Gallery / Archive</h1>
+                            <p style="font-family: var(--font-serifhead); font-style: italic; color: var(--color-stone); font-size: 14px; margin-top: 0.25rem;">
+                                Scanned front-page editions, special broadsheet print issues, and newspaper clippings.
+                            </p>
+                        </div>
+                        <span style="font-family: var(--font-condensed); font-size: 13px; text-transform: uppercase; color: var(--color-stone); letter-spacing: 0.14em;">
+                            ${clippings.length} ${clippings.length === 1 ? 'Clipping' : 'Clippings'}
+                        </span>
+                    </div>
+
+                    ${clippings.length === 0 ? `
+                        <div style="padding: 4rem 1.5rem; text-align: center; border: 1px dashed var(--color-rule); background: var(--color-tint); margin-bottom: 2rem;">
+                            <h2 style="font-family: var(--font-poster); font-size: 26px; text-transform: uppercase;">No Archival Clippings Yet</h2>
+                            <p style="font-family: var(--font-serifhead); font-style: italic; color: var(--color-stone); margin-top: 0.5rem; font-size: 15px;">
+                                Scanned front-page newspaper editions will be exhibited here once uploaded from the Newsroom desk.
+                            </p>
+                            <a href="#/" class="back-link" style="margin-top: 1.25rem;">← Return to Front Page</a>
+                        </div>
+                    ` : `
+                        <div class="gallery-grid">
+                            ${clippings.map(clip => `
+                                <div class="clipping-card" data-clipping-id="${this.escapeHtml(clip.id)}" role="button" tabindex="0" aria-label="Open clipping edition of ${this.formatDisplayDate(clip.editionDate)}">
+                                    <div class="clipping-thumb-wrap">
+                                        <img src="${this.escapeHtml(clip.imageUrl)}" alt="${this.escapeHtml(clip.caption || 'Delhi News Live front page scan')}" class="clipping-thumb" loading="lazy" />
+                                        <div class="clipping-overlay-badge">🔍 Expand</div>
+                                    </div>
+                                    <div class="clipping-card-footer">
+                                        <span class="clipping-date-badge">EDITION: ${this.formatDisplayDate(clip.editionDate)}</span>
+                                        ${clip.caption ? `<p class="clipping-caption">${this.escapeHtml(clip.caption)}</p>` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <p style="margin-top: 1.75rem;"><a href="#/" class="back-link">← Return to Front Page</a></p>
+                    `}
+                </div>
+
+                <!-- Full-Size Lightbox Modal -->
+                <div id="clippingLightbox" class="clipping-lightbox-overlay" style="display: none;" role="dialog" aria-modal="true">
+                    <div class="clipping-lightbox-backdrop" id="clippingLightboxBackdrop"></div>
+                    <div class="clipping-lightbox-container">
+                        <div class="clipping-lightbox-header">
+                            <div>
+                                <span class="clipping-lightbox-date" id="lbClippingDate"></span>
+                                <h3 class="clipping-lightbox-title" id="lbClippingCaption"></h3>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <a id="lbClippingExtLink" href="#" target="_blank" rel="noopener" class="clipping-lightbox-ext-btn">Open Original ↗</a>
+                                <button type="button" id="lbClippingCloseBtn" class="clipping-lightbox-close-btn" aria-label="Close Lightbox">✕ Close</button>
+                            </div>
+                        </div>
+                        <div class="clipping-lightbox-body">
+                            <img id="lbClippingImg" src="" alt="Full size clipping" class="clipping-lightbox-img" />
+                        </div>
+                    </div>
                 </div>
             `;
         }
@@ -1070,6 +1163,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                     <button class="admin-tab-pill ${adminTab === 'stories' ? 'admin-tab-pill--active' : ''}" data-admin-tab="stories">📰 Stories</button>
                     <button class="admin-tab-pill ${adminTab === 'analytics' ? 'admin-tab-pill--active' : ''}" data-admin-tab="analytics">📊 Readership & Analytics</button>
                     <button class="admin-tab-pill ${adminTab === 'interviews' ? 'admin-tab-pill--active' : ''}" data-admin-tab="interviews">🎥 Video Clippings</button>
+                    <button class="admin-tab-pill ${adminTab === 'gallery' ? 'admin-tab-pill--active' : ''}" data-admin-tab="gallery">🖼️ Gallery / Archive</button>
                     <button class="admin-tab-pill ${adminTab === 'settings' ? 'admin-tab-pill--active' : ''}" data-admin-tab="settings">⚙️ Site Settings</button>
                 </div>
 
@@ -1542,6 +1636,92 @@ Besides, he has been editing several other english magazines and periodicals as 
                                 </div>
                             `).join('')
                         }
+                    </section>
+                </div>
+
+                <!-- ── GALLERY / ARCHIVE TAB ── -->
+                <div id="admin-panel-gallery" style="${adminTab === 'gallery' ? '' : 'display:none;'}">
+                    <section class="cms-card cms-card-primary">
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--color-ink); padding-bottom: 0.4rem; margin-bottom: 0.75rem;">
+                            <h2 style="font-family: var(--font-poster); font-size: 22px; text-transform: uppercase;">
+                                🖼️ Upload Front-Page Clipping
+                            </h2>
+                            <span class="field-label" style="margin: 0; color: var(--color-stone);">
+                                Edition Archive Desk
+                            </span>
+                        </div>
+
+                        <form id="clippingUploadForm" style="display: flex; flex-direction: column; gap: 0.85rem;">
+                            <!-- File Upload Box -->
+                            <div>
+                                <span class="field-label">Front-Page Clipping Image *</span>
+                                <div style="border: 2px dashed var(--color-rule); background: var(--color-tint); padding: 1.25rem; text-align: center; cursor: pointer;" id="clippingDropZone">
+                                    <input type="file" id="clippingFileInput" accept="image/*" style="display: none;" />
+                                    <button type="button" class="btn-secondary" id="btnBrowseClipping" style="width: auto; padding: 0.4rem 1rem; margin: 0 auto 0.5rem auto;">📁 Choose Clipping Image</button>
+                                    <p style="font-family: var(--font-serifhead); font-size: 12px; color: var(--color-stone);">JPG, PNG, or WEBP scanned newspaper front pages. High resolution recommended.</p>
+                                    <input type="text" id="clippingImageUrl" class="input-standard" placeholder="Or paste external image URL here..." style="margin-top: 0.65rem; font-size: 13px;" />
+                                </div>
+                                <div id="clippingPreviewWrap" style="display: none; margin-top: 0.75rem; text-align: center;">
+                                    <img id="clippingPreviewImg" src="" alt="Clipping preview" style="max-height: 220px; margin: 0 auto; border: 1px solid var(--color-ink); box-shadow: 0 2px 8px rgba(0,0,0,0.15);" />
+                                </div>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 1rem;">
+                                <div>
+                                    <span class="field-label">Edition Date *</span>
+                                    <input type="date" id="clippingDate" class="input-standard" value="${new Date().toISOString().split('T')[0]}" required />
+                                </div>
+                                <div>
+                                    <span class="field-label">Optional Caption / Edition Title</span>
+                                    <input type="text" id="clippingCaption" class="input-standard" placeholder="E.g. Front-Page Lead on Geneva Climate Summit" />
+                                </div>
+                            </div>
+
+                            <div style="display: flex; justify-content: flex-end; margin-top: 0.5rem;">
+                                <button type="submit" id="btnSaveClipping" class="btn-primary" style="width: auto; padding: 0.6rem 1.75rem; font-size: 15px;">
+                                    ✓ Upload & Publish to Archive
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+
+                    <!-- Existing Clippings Management List -->
+                    <section class="cms-card" style="margin-top: 1.5rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--color-ink); padding-bottom: 0.4rem; margin-bottom: 0.85rem;">
+                            <h2 style="font-family: var(--font-poster); font-size: 20px; text-transform: uppercase;">
+                                Archived Clippings (${window.DNLDataStore.getClippings().length})
+                            </h2>
+                            <span class="field-label" style="color: var(--color-stone); font-size: 12px;">Sorted most recent first</span>
+                        </div>
+
+                        ${window.DNLDataStore.getClippings().length === 0 ? `
+                            <p style="font-family: var(--font-serifhead); font-style: italic; color: var(--color-stone); padding: 1.5rem 0; text-align: center;">
+                                No clippings uploaded yet. Use the form above to add your first front-page scan.
+                            </p>
+                        ` : `
+                            <div class="clipping-admin-list">
+                                ${window.DNLDataStore.getClippings().map(c => `
+                                    <div class="clipping-admin-row">
+                                        <img src="${this.escapeHtml(c.imageUrl)}" alt="Thumb" class="clipping-admin-thumb" />
+                                        <div class="clipping-admin-info">
+                                            <strong style="font-family: var(--font-serifhead); font-size: 15px; display: block;">
+                                                Edition: ${this.formatDisplayDate(c.editionDate)}
+                                            </strong>
+                                            ${c.caption ? `<p style="font-size: 13px; color: var(--color-ink); margin-top: 0.2rem;">${this.escapeHtml(c.caption)}</p>` : ''}
+                                            <span style="font-family: var(--font-condensed); font-size: 11px; color: var(--color-stone); text-transform: uppercase;">
+                                                Uploaded: ${new Date(c.created_at || Date.now()).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <a href="${this.escapeHtml(c.imageUrl)}" target="_blank" class="btn-secondary" style="width: auto; padding: 0.35rem 0.75rem; font-size: 12px;">View</a>
+                                            <button class="btn-secondary btnDeleteClipping" data-clip-id="${c.id}" style="width: auto; padding: 0.35rem 0.75rem; font-size: 12px; color: var(--color-brandred); border-color: var(--color-brandred);">
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `}
                     </section>
                 </div>
             `;
@@ -2094,6 +2274,199 @@ Besides, he has been editing several other english magazines and periodicals as 
                     this.render();
                 });
             }
+
+            /* ═══════════════════════════════════════════════════════════════
+             * GALLERY / ARCHIVE PUBLIC & ADMIN EVENT LISTENERS
+             * ═══════════════════════════════════════════════════════════════ */
+
+            // 1. Lightbox Open
+            document.querySelectorAll('.clipping-card').forEach(card => {
+                const openModal = () => {
+                    const id = card.getAttribute('data-clipping-id');
+                    const clips = window.DNLDataStore.getClippings();
+                    const clip = clips.find(c => c.id === id);
+                    if (!clip) return;
+
+                    const overlay = document.getElementById('clippingLightbox');
+                    const img = document.getElementById('lbClippingImg');
+                    const date = document.getElementById('lbClippingDate');
+                    const caption = document.getElementById('lbClippingCaption');
+                    const extLink = document.getElementById('lbClippingExtLink');
+
+                    if (overlay && img) {
+                        img.src = clip.imageUrl;
+                        if (date) date.innerText = `Edition: ${this.formatDisplayDate(clip.editionDate)}`;
+                        if (caption) caption.innerText = clip.caption || '';
+                        if (extLink) extLink.href = clip.imageUrl;
+                        overlay.style.display = 'flex';
+                        document.body.style.overflow = 'hidden';
+                    }
+                };
+
+                card.addEventListener('click', openModal);
+                card.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openModal();
+                    }
+                });
+            });
+
+            // 2. Lightbox Close
+            const closeLightbox = () => {
+                const overlay = document.getElementById('clippingLightbox');
+                if (overlay) {
+                    overlay.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
+            };
+
+            const lbCloseBtn = document.getElementById('lbClippingCloseBtn');
+            if (lbCloseBtn) lbCloseBtn.addEventListener('click', closeLightbox);
+
+            const lbBackdrop = document.getElementById('clippingLightboxBackdrop');
+            if (lbBackdrop) lbBackdrop.addEventListener('click', closeLightbox);
+
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeLightbox();
+                }
+            });
+
+            // 3. Admin Clipping File Selection & Live Preview
+            const clipFileInput = document.getElementById('clippingFileInput');
+            const btnBrowseClip = document.getElementById('btnBrowseClipping');
+            const clipDropZone = document.getElementById('clippingDropZone');
+            const clipUrlInput = document.getElementById('clippingImageUrl');
+            const clipPreviewWrap = document.getElementById('clippingPreviewWrap');
+            const clipPreviewImg = document.getElementById('clippingPreviewImg');
+
+            if (btnBrowseClip && clipFileInput) {
+                btnBrowseClip.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    clipFileInput.click();
+                });
+            }
+
+            if (clipDropZone && clipFileInput) {
+                clipDropZone.addEventListener('click', (e) => {
+                    if (e.target === clipUrlInput) return;
+                    clipFileInput.click();
+                });
+            }
+
+            if (clipFileInput) {
+                clipFileInput.addEventListener('change', async (e) => {
+                    const file = e.target.files && e.target.files[0];
+                    if (file) {
+                        if (!file.type.startsWith('image/')) {
+                            alert('Please select a valid image file (JPG, PNG, or WEBP).');
+                            clipFileInput.value = '';
+                            return;
+                        }
+                        if (file.size > 25 * 1024 * 1024) {
+                            alert('File size exceeds 25MB limit.');
+                            clipFileInput.value = '';
+                            return;
+                        }
+
+                        // Instant preview
+                        const reader = new FileReader();
+                        reader.onload = (re) => {
+                            if (clipPreviewImg && clipPreviewWrap) {
+                                clipPreviewImg.src = re.target.result;
+                                clipPreviewWrap.style.display = 'block';
+                            }
+                        };
+                        reader.readAsDataURL(file);
+
+                        if (clipUrlInput) clipUrlInput.value = 'Uploading to Supabase Storage...';
+
+                        try {
+                            const uploadedUrl = await window.DNLDataStore.uploadMediaFile(file, 'clippings');
+                            if (clipUrlInput) clipUrlInput.value = uploadedUrl;
+                            if (clipPreviewImg) clipPreviewImg.src = uploadedUrl;
+                        } catch (uploadErr) {
+                            console.warn('Upload error:', uploadErr);
+                            if (clipUrlInput) clipUrlInput.value = '';
+                        }
+                    }
+                });
+            }
+
+            if (clipUrlInput) {
+                clipUrlInput.addEventListener('input', () => {
+                    const url = clipUrlInput.value.trim();
+                    if (url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:image/'))) {
+                        if (clipPreviewImg && clipPreviewWrap) {
+                            clipPreviewImg.src = url;
+                            clipPreviewWrap.style.display = 'block';
+                        }
+                    }
+                });
+            }
+
+            // 4. Admin Save Clipping Form Submission
+            const clipForm = document.getElementById('clippingUploadForm');
+            if (clipForm) {
+                clipForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const url = (clipUrlInput ? clipUrlInput.value : '').trim();
+                    if (!url) {
+                        alert('Please choose or enter a clipping image.');
+                        return;
+                    }
+                    if (url === 'Uploading to Supabase Storage...') {
+                        alert('Image is still uploading to storage. Please wait a moment.');
+                        return;
+                    }
+
+                    const date = (document.getElementById('clippingDate')?.value || '').trim();
+                    if (!date) {
+                        alert('Please select an edition date.');
+                        return;
+                    }
+                    const caption = (document.getElementById('clippingCaption')?.value || '').trim();
+
+                    const submitBtn = document.getElementById('btnSaveClipping');
+                    if (submitBtn) {
+                        submitBtn.innerText = 'Publishing...';
+                        submitBtn.disabled = true;
+                    }
+
+                    try {
+                        await window.DNLDataStore.saveClipping({
+                            imageUrl: url,
+                            editionDate: date,
+                            caption
+                        });
+                        this.adminTab = 'gallery';
+                        this.render();
+                        this.showToast(`✓ Clipping for edition ${this.formatDisplayDate(date)} published to archive!`);
+                    } catch (saveErr) {
+                        alert('Error saving clipping: ' + (saveErr.message || saveErr));
+                    } finally {
+                        if (submitBtn) {
+                            submitBtn.innerText = '✓ Upload & Publish to Archive';
+                            submitBtn.disabled = false;
+                        }
+                    }
+                });
+            }
+
+            // 5. Admin Delete Clipping
+            document.querySelectorAll('.btnDeleteClipping').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.getAttribute('data-clip-id');
+                    if (!id) return;
+                    if (confirm('Are you sure you want to delete this clipping from the archive? This cannot be undone.')) {
+                        await window.DNLDataStore.deleteClipping(id);
+                        this.adminTab = 'gallery';
+                        this.render();
+                        this.showToast('✓ Clipping removed from archive.');
+                    }
+                });
+            });
         }
     }
 

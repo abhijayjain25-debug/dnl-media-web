@@ -431,6 +431,7 @@ class DataStore {
         this.STORAGE_KEY_ARTICLES = 'dnl_articles_v5_scroll';
         this.STORAGE_KEY_SETTINGS = 'dnl_settings_v5_scroll';
         this.STORAGE_KEY_INTERVIEWS = 'dnl_interviews_v1';
+        this.STORAGE_KEY_CLIPPINGS = 'dnl_clippings_v1';
         this.STORAGE_KEY_AUTH = 'dnl_newsroom_auth';
         this.supabase = window.supabaseClient || null;
         this.isSyncing = false;
@@ -445,6 +446,9 @@ class DataStore {
         }
         if (!localStorage.getItem(this.STORAGE_KEY_SETTINGS)) {
             localStorage.setItem(this.STORAGE_KEY_SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
+        }
+        if (!localStorage.getItem(this.STORAGE_KEY_CLIPPINGS)) {
+            localStorage.setItem(this.STORAGE_KEY_CLIPPINGS, JSON.stringify([]));
         }
 
         // Initialize Supabase sync and realtime listeners
@@ -599,6 +603,33 @@ class DataStore {
                 console.warn('⚠️ Could not fetch interviews from Supabase:', interviewsError.message);
             }
 
+            // 4. Synchronize Clippings / Gallery from Supabase
+            let clippingsData = null;
+            let clippingsError = null;
+            try {
+                const res = await this.supabase
+                    .from('clippings')
+                    .select('*')
+                    .order('edition_date', { ascending: false });
+                clippingsData = res.data;
+                clippingsError = res.error;
+            } catch (cErr) {
+                clippingsError = cErr;
+            }
+
+            if (!clippingsError && clippingsData) {
+                const formatted = clippingsData.map(c => ({
+                    id: c.id,
+                    imageUrl: c.image_url || c.imageUrl || '',
+                    editionDate: c.edition_date || c.editionDate || '',
+                    caption: c.caption || '',
+                    created_at: c.created_at || new Date().toISOString()
+                }));
+                localStorage.setItem(this.STORAGE_KEY_CLIPPINGS, JSON.stringify(formatted));
+            } else if (clippingsError) {
+                console.warn('⚠️ Could not fetch clippings from Supabase (table may not exist yet):', clippingsError.message || clippingsError);
+            }
+
             console.log('✅ Supabase data synchronization complete.');
 
             // Trigger UI update if app is ready
@@ -664,6 +695,10 @@ class DataStore {
                 })
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => {
                     console.log('🔄 Realtime update received: settings');
+                    this.syncFromSupabase();
+                })
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'clippings' }, () => {
+                    console.log('🔄 Realtime update received: clippings');
                     this.syncFromSupabase();
                 })
                 .subscribe();
@@ -1262,6 +1297,106 @@ class DataStore {
                 console.error('❌ Error clearing interviews from Supabase:', err);
             }
         }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+     * GALLERY / CLIPPINGS METHODS
+     * ═══════════════════════════════════════════════════════════════ */
+
+    getClippings() {
+        try {
+            const data = localStorage.getItem(this.STORAGE_KEY_CLIPPINGS);
+            const items = data ? JSON.parse(data) : [];
+            return items.map(c => ({
+                id: c.id,
+                imageUrl: c.imageUrl || c.image_url || '',
+                editionDate: c.editionDate || c.edition_date || '',
+                caption: c.caption || '',
+                created_at: c.created_at || ''
+            })).sort((a, b) => {
+                const dateA = new Date(a.editionDate).getTime() || 0;
+                const dateB = new Date(b.editionDate).getTime() || 0;
+                if (dateB !== dateA) return dateB - dateA;
+                const createdA = new Date(a.created_at).getTime() || 0;
+                const createdB = new Date(b.created_at).getTime() || 0;
+                return createdB - createdA;
+            });
+        } catch (e) {
+            return [];
+        }
+    }
+
+    async saveClipping(clipping) {
+        const items = this.getClippings();
+        const toSave = {
+            id: clipping.id || ('clip-' + Date.now() + '-' + Math.random().toString(36).substr(2, 4)),
+            imageUrl: clipping.imageUrl || clipping.image_url || '',
+            editionDate: clipping.editionDate || clipping.edition_date || new Date().toISOString().split('T')[0],
+            caption: clipping.caption || '',
+            created_at: clipping.created_at || new Date().toISOString()
+        };
+
+        const idx = items.findIndex(c => c.id === toSave.id);
+        if (idx !== -1) {
+            items[idx] = toSave;
+        } else {
+            items.unshift(toSave);
+        }
+
+        // 1. Optimistic local update
+        localStorage.setItem(this.STORAGE_KEY_CLIPPINGS, JSON.stringify(items));
+
+        // 2. Persist to Supabase
+        if (this.supabase) {
+            try {
+                const dbRecord = {
+                    id: toSave.id,
+                    image_url: toSave.imageUrl,
+                    edition_date: toSave.editionDate,
+                    caption: toSave.caption,
+                    created_at: toSave.created_at
+                };
+
+                const { error } = await this.supabase
+                    .from('clippings')
+                    .upsert(dbRecord, { onConflict: 'id' });
+
+                if (error) {
+                    console.warn('⚠️ Supabase clipping save error:', error.message);
+                } else {
+                    console.log('✅ Clipping successfully saved to Supabase:', toSave.id);
+                }
+            } catch (err) {
+                console.error('❌ Error saving clipping to Supabase:', err);
+            }
+        }
+
+        return toSave;
+    }
+
+    async deleteClipping(id) {
+        let items = this.getClippings();
+        items = items.filter(c => c.id !== id);
+        localStorage.setItem(this.STORAGE_KEY_CLIPPINGS, JSON.stringify(items));
+
+        if (this.supabase) {
+            try {
+                const { error } = await this.supabase
+                    .from('clippings')
+                    .delete()
+                    .eq('id', id);
+
+                if (error) {
+                    console.warn('⚠️ Supabase clipping delete error:', error.message);
+                } else {
+                    console.log('✅ Clipping deleted from Supabase:', id);
+                }
+            } catch (err) {
+                console.error('❌ Error deleting clipping from Supabase:', err);
+            }
+        }
+
+        return true;
     }
 
     async compressImageFile(file, maxWidth = 1280, maxHeight = 1280, quality = 0.78) {

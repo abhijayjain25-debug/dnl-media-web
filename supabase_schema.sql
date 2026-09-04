@@ -244,6 +244,49 @@ CREATE POLICY "Authenticated admins can delete media objects"
     TO authenticated
     USING (bucket_id = 'media' AND auth.uid() IS NOT NULL);
 
+-- -----------------------------------------------------------------------------
+-- 4. CLIPPINGS / GALLERY TABLE & POLICIES
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.clippings (
+    id TEXT PRIMARY KEY,
+    image_url TEXT NOT NULL,
+    edition_date TEXT NOT NULL,
+    caption TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS on clippings
+ALTER TABLE public.clippings ENABLE ROW LEVEL SECURITY;
+
+-- Drop all current and legacy policies on public.clippings
+DROP POLICY IF EXISTS "Allow full access to clippings" ON public.clippings;
+DROP POLICY IF EXISTS "Public can read clippings" ON public.clippings;
+DROP POLICY IF EXISTS "Authenticated admin can insert clippings" ON public.clippings;
+DROP POLICY IF EXISTS "Authenticated admin can update clippings" ON public.clippings;
+DROP POLICY IF EXISTS "Authenticated admin can delete clippings" ON public.clippings;
+
+-- Public Read: Anyone can view clippings in the gallery/archive
+CREATE POLICY "Public can read clippings"
+    ON public.clippings FOR SELECT
+    USING (true);
+
+-- Admin Write: Only authenticated users can insert, update, or delete clippings
+CREATE POLICY "Authenticated admin can insert clippings"
+    ON public.clippings FOR INSERT
+    TO authenticated
+    WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Authenticated admin can update clippings"
+    ON public.clippings FOR UPDATE
+    TO authenticated
+    USING (auth.uid() IS NOT NULL)
+    WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Authenticated admin can delete clippings"
+    ON public.clippings FOR DELETE
+    TO authenticated
+    USING (auth.uid() IS NOT NULL);
+
 -- =============================================================================
 -- REALTIME REPLICATION (Instant multi-device broadcast)
 -- =============================================================================
@@ -261,4 +304,9 @@ BEGIN
         ALTER PUBLICATION supabase_realtime ADD TABLE public.settings;
     EXCEPTION WHEN duplicate_object THEN NULL;
     END;
+    BEGIN
+        ALTER PUBLICATION supabase_realtime ADD TABLE public.clippings;
+    EXCEPTION WHEN duplicate_object THEN NULL;
+    END;
 END $$;
+
