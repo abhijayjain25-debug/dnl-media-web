@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS public.articles (
     image_url TEXT,
     image_caption TEXT,
     image_layout TEXT DEFAULT 'top',
+    gallery_images JSONB DEFAULT '[]'::jsonb,
     is_breaking BOOLEAN DEFAULT false,
     views INTEGER DEFAULT 0,
     author_name TEXT DEFAULT 'SYED WAJID',
@@ -70,6 +71,7 @@ Besides, he has been editing several other english magazines and periodicals as 
 
 -- Schema Migration Helpers (if updating an existing database)
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS image_layout TEXT DEFAULT 'top';
+ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS gallery_images JSONB DEFAULT '[]'::jsonb;
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS is_breaking BOOLEAN DEFAULT false;
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0;
 ALTER TABLE public.articles ADD COLUMN IF NOT EXISTS column_pin TEXT DEFAULT 'auto';

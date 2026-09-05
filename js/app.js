@@ -1060,6 +1060,45 @@ Besides, he has been editing several other english magazines and periodicals as 
                         ${bodyParagraphsHtml}
                     </div>
 
+                    ${(() => {
+                        const galleryImages = Array.isArray(article.gallery_images) ? article.gallery_images.filter(Boolean) : [];
+                        if (galleryImages.length === 0) return '';
+                        return `
+                            <section class="article-photo-gallery">
+                                <div class="gallery-header">
+                                    <span class="gallery-badge">PHOTO GALLERY</span>
+                                    <h3 class="gallery-title">ADDITIONAL PHOTOGRAPHS (${galleryImages.length})</h3>
+                                </div>
+                                <div class="gallery-grid">
+                                    ${galleryImages.map((imgUrl, idx) => `
+                                        <figure class="gallery-item js-gallery-trigger" data-index="${idx}" tabindex="0" role="button" aria-label="Open photo ${idx + 1} of ${galleryImages.length} in lightbox">
+                                            <img src="${imgUrl}" alt="${article.headline} - Photo ${idx + 1}" loading="lazy" />
+                                            <div class="gallery-item-overlay">
+                                                <span class="gallery-zoom-icon">🔍 Tap to expand</span>
+                                            </div>
+                                        </figure>
+                                    `).join('')}
+                                </div>
+                            </section>
+                            <div id="articleGalleryModal" class="article-gallery-lightbox-overlay" style="display: none;" role="dialog" aria-modal="true" aria-label="Photo Gallery Lightbox">
+                                <div class="article-gallery-backdrop" id="articleGalleryBackdrop"></div>
+                                <div class="article-gallery-modal-body">
+                                    <div class="article-gallery-top-bar">
+                                        <span id="articleGalleryCounter" class="article-gallery-counter">Photo 1 of ${galleryImages.length}</span>
+                                        <button type="button" id="articleGalleryCloseBtn" class="article-gallery-close-btn" aria-label="Close Gallery">&times;</button>
+                                    </div>
+                                    <div class="article-gallery-viewer">
+                                        <button type="button" id="articleGalleryPrevBtn" class="article-gallery-arrow-btn prev" aria-label="Previous Photo">&#10094;</button>
+                                        <div class="article-gallery-img-wrap">
+                                            <img id="articleGalleryCurrentImg" src="" alt="Full size photo" />
+                                        </div>
+                                        <button type="button" id="articleGalleryNextBtn" class="article-gallery-arrow-btn next" aria-label="Next Photo">&#10095;</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    })()}
+
                     ${socialToolbarHtml}
 
                     <p style="margin-top: 1.5rem;">
@@ -1251,19 +1290,57 @@ Besides, he has been editing several other english magazines and periodicals as 
                                 </div>
                             </div>
 
-                            <!-- Direct Device File Upload -->
+                            <!-- Direct Device File Upload (Main / Featured Image) -->
                             <div style="border: 2px dashed var(--color-ink); padding: 1rem; background-color: var(--color-tint);">
                                 <span class="field-label" style="font-size: 13px; color: var(--color-ink); margin-bottom: 0.35rem;">
-                                    📷 Story Photograph (Upload from Device / Gallery)
+                                    📷 Main / Featured Photograph (Upload from Device)
                                 </span>
                                 <input type="file" id="storyImageFile" accept="image/*" class="input-standard" style="background: white; padding: 0.5rem; cursor: pointer;" />
 
                                 <div id="imagePreviewContainer" style="margin-top: 0.75rem; ${editing.image_url ? 'display: block;' : 'display: none;'}">
-                                    <p class="field-label">Selected Photo Preview:</p>
-                                    <img id="imagePreview" src="${editing.image_url || ''}" alt="Preview" style="max-height: 220px; width: auto; max-width: 100%; object-fit: cover; border: 1px solid var(--color-rule);" />
+                                    <p class="field-label">Selected Main Photo Preview:</p>
+                                    <div style="position: relative; display: inline-block; max-width: 100%;">
+                                        <img id="imagePreview" src="${editing.image_url || ''}" alt="Preview" style="max-height: 220px; width: auto; max-width: 100%; object-fit: cover; border: 1px solid var(--color-rule); display: block;" />
+                                        <button type="button" id="btnRemoveMainImage" class="btn-remove-gallery-img" style="top: 6px; right: 6px; width: 26px; height: 26px; font-size: 16px;" title="Remove main photograph">&times;</button>
+                                    </div>
                                 </div>
 
                                 <input type="hidden" id="storyImage" value="${editing.image_url || ''}" />
+                            </div>
+
+                            <!-- Additional Gallery Photos (Multi-Upload) -->
+                            <div class="cms-gallery-manager">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                                    <div>
+                                        <span class="field-label" style="font-size: 13px; font-weight: 700; color: var(--color-ink); margin: 0;">
+                                            🖼️ Additional Photos / Story Gallery (Optional)
+                                        </span>
+                                        <p style="font-size: 11px; color: var(--color-stone); margin: 2px 0 0 0; font-family: var(--font-headline);">
+                                            Select multiple photos to attach a responsive photo gallery to this story.
+                                        </p>
+                                    </div>
+                                    <span id="galleryCountBadge" class="gallery-count-badge">
+                                        ${(editing.gallery_images || []).length} photos attached
+                                    </span>
+                                </div>
+
+                                <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                                    <label for="storyGalleryFiles" class="btn-action-primary" style="margin: 0; padding: 0.4rem 0.85rem; font-size: 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                                        <span>➕ Select Photos</span>
+                                        <input type="file" id="storyGalleryFiles" accept="image/*" multiple style="display: none;" />
+                                    </label>
+                                    <span id="galleryUploadStatus" style="font-size: 12px; color: var(--color-stone); font-style: italic;"></span>
+                                </div>
+
+                                <div id="galleryThumbnailsContainer" class="gallery-thumbnails-grid">
+                                    ${(editing.gallery_images || []).map((imgUrl, index) => `
+                                        <div class="gallery-thumb-item" data-index="${index}">
+                                            <img src="${imgUrl}" alt="Gallery photo ${index + 1}" />
+                                            <button type="button" class="btn-remove-gallery-img" data-index="${index}" title="Remove photo">&times;</button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <input type="hidden" id="storyGalleryData" value='${JSON.stringify(editing.gallery_images || [])}' />
                             </div>
 
                             <!-- Visual Layout Picker -->
@@ -1841,6 +1918,87 @@ Besides, he has been editing several other english magazines and periodicals as 
                 });
             });
 
+            // Article Photo Gallery Lightbox Handlers
+            const galleryModal = document.getElementById('articleGalleryModal');
+            if (galleryModal) {
+                const galleryItems = Array.from(document.querySelectorAll('.js-gallery-trigger'));
+                const modalImg = document.getElementById('articleGalleryCurrentImg');
+                const counterEl = document.getElementById('articleGalleryCounter');
+                const prevBtn = document.getElementById('articleGalleryPrevBtn');
+                const nextBtn = document.getElementById('articleGalleryNextBtn');
+                const closeBtn = document.getElementById('articleGalleryCloseBtn');
+                const backdrop = document.getElementById('articleGalleryBackdrop');
+
+                let currentIndex = 0;
+                const total = galleryItems.length;
+
+                const showGalleryPhoto = (idx) => {
+                    if (total === 0) return;
+                    currentIndex = (idx + total) % total;
+                    const trigger = galleryItems[currentIndex];
+                    const img = trigger ? trigger.querySelector('img') : null;
+                    if (img && modalImg) {
+                        modalImg.src = img.src;
+                        modalImg.alt = img.alt || `Photo ${currentIndex + 1}`;
+                    }
+                    if (counterEl) {
+                        counterEl.innerText = `Photo ${currentIndex + 1} of ${total}`;
+                    }
+                };
+
+                const openGalleryModal = (startIdx) => {
+                    showGalleryPhoto(startIdx);
+                    galleryModal.style.display = 'flex';
+                    document.body.style.overflow = 'hidden';
+                };
+
+                const closeGalleryModal = () => {
+                    galleryModal.style.display = 'none';
+                    document.body.style.overflow = '';
+                };
+
+                galleryItems.forEach(item => {
+                    item.addEventListener('click', () => {
+                        const idx = parseInt(item.getAttribute('data-index'), 10) || 0;
+                        openGalleryModal(idx);
+                    });
+                    item.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            const idx = parseInt(item.getAttribute('data-index'), 10) || 0;
+                            openGalleryModal(idx);
+                        }
+                    });
+                });
+
+                if (closeBtn) closeBtn.addEventListener('click', closeGalleryModal);
+                if (backdrop) backdrop.addEventListener('click', closeGalleryModal);
+                if (prevBtn) prevBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showGalleryPhoto(currentIndex - 1);
+                });
+                if (nextBtn) nextBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    showGalleryPhoto(currentIndex + 1);
+                });
+
+                // Keyboard controls for photo gallery modal
+                if (this._galleryKeyHandler) {
+                    window.removeEventListener('keydown', this._galleryKeyHandler);
+                }
+                this._galleryKeyHandler = (e) => {
+                    if (galleryModal.style.display === 'none') return;
+                    if (e.key === 'Escape') {
+                        closeGalleryModal();
+                    } else if (e.key === 'ArrowLeft') {
+                        showGalleryPhoto(currentIndex - 1);
+                    } else if (e.key === 'ArrowRight') {
+                        showGalleryPhoto(currentIndex + 1);
+                    }
+                };
+                window.addEventListener('keydown', this._galleryKeyHandler);
+            }
+
             // Layout Picker Radio Card Selection
             document.querySelectorAll('input[name="storyImageLayout"]').forEach(radio => {
                 radio.addEventListener('change', () => {
@@ -1913,6 +2071,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                         image_url: '',
                         image_caption: '',
                         image_layout: 'top',
+                        gallery_images: [],
                         is_breaking: false,
                         views: 0,
                         body: '',
@@ -1933,8 +2092,26 @@ Besides, he has been editing several other english magazines and periodicals as 
                 });
             }
 
-            // Device Image Upload for Story
+            // Device Image Upload for Story (Main Image)
             const storyImageFile = document.getElementById('storyImageFile');
+            const btnRemoveMainImage = document.getElementById('btnRemoveMainImage');
+            if (btnRemoveMainImage) {
+                btnRemoveMainImage.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (storyImageFile) storyImageFile.value = '';
+                    const urlInput = document.getElementById('storyImage');
+                    if (urlInput) urlInput.value = '';
+                    const preview = document.getElementById('imagePreview');
+                    if (preview) preview.src = '';
+                    const previewContainer = document.getElementById('imagePreviewContainer');
+                    if (previewContainer) previewContainer.style.display = 'none';
+                    if (this.editingArticle) {
+                        this.editingArticle.image_url = '';
+                    }
+                });
+            }
+
             if (storyImageFile) {
                 storyImageFile.addEventListener('change', async (e) => {
                     const file = e.target.files && e.target.files[0];
@@ -1960,7 +2137,116 @@ Besides, he has been editing several other english magazines and periodicals as 
                             preview.src = uploadedUrl;
                             previewContainer.style.display = 'block';
                         }
+                        if (this.editingArticle) {
+                            this.editingArticle.image_url = uploadedUrl;
+                        }
                     }
+                });
+            }
+
+            // Device Multi-Image Gallery Upload for Story
+            const storyGalleryFiles = document.getElementById('storyGalleryFiles');
+            const wireGalleryRemoveButtons = () => {
+                document.querySelectorAll('.btn-remove-gallery-img').forEach(btn => {
+                    btn.onclick = (ev) => {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        const idx = parseInt(btn.getAttribute('data-index'), 10);
+                        const hiddenInput = document.getElementById('storyGalleryData');
+                        const container = document.getElementById('galleryThumbnailsContainer');
+                        const countBadge = document.getElementById('galleryCountBadge');
+                        let currentGallery = [];
+                        try {
+                            currentGallery = JSON.parse(hiddenInput?.value || '[]');
+                        } catch (err) {
+                            currentGallery = [];
+                        }
+                        if (idx >= 0 && idx < currentGallery.length) {
+                            currentGallery.splice(idx, 1);
+                        }
+                        if (hiddenInput) hiddenInput.value = JSON.stringify(currentGallery);
+                        if (this.editingArticle) {
+                            this.editingArticle.gallery_images = currentGallery;
+                        }
+                        if (countBadge) countBadge.innerText = `${currentGallery.length} photos attached`;
+                        if (container) {
+                            container.innerHTML = currentGallery.map((imgUrl, index) => `
+                                <div class="gallery-thumb-item" data-index="${index}">
+                                    <img src="${imgUrl}" alt="Gallery photo ${index + 1}" />
+                                    <button type="button" class="btn-remove-gallery-img" data-index="${index}" title="Remove photo">&times;</button>
+                                </div>
+                            `).join('');
+                            wireGalleryRemoveButtons();
+                        }
+                    };
+                });
+            };
+
+            if (storyGalleryFiles) {
+                wireGalleryRemoveButtons();
+
+                storyGalleryFiles.addEventListener('change', async (e) => {
+                    const files = Array.from(e.target.files || []);
+                    if (!files.length) return;
+
+                    const statusEl = document.getElementById('galleryUploadStatus');
+                    const container = document.getElementById('galleryThumbnailsContainer');
+                    const hiddenInput = document.getElementById('storyGalleryData');
+                    const countBadge = document.getElementById('galleryCountBadge');
+
+                    let currentGallery = [];
+                    try {
+                        currentGallery = JSON.parse(hiddenInput?.value || '[]');
+                    } catch (err) {
+                        currentGallery = [];
+                    }
+
+                    if (statusEl) statusEl.innerText = `Uploading 0 of ${files.length} photos...`;
+
+                    let addedCount = 0;
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        if (!file.type || !file.type.startsWith('image/')) continue;
+                        if (file.size > 8 * 1024 * 1024) {
+                            alert(`Photo "${file.name}" exceeds 8MB limit and was skipped.`);
+                            continue;
+                        }
+                        if (statusEl) statusEl.innerText = `Uploading photo ${i + 1} of ${files.length}...`;
+                        try {
+                            const uploadedUrl = await window.DNLDataStore.uploadMediaFile(file, 'articles');
+                            if (uploadedUrl) {
+                                currentGallery.push(uploadedUrl);
+                                addedCount++;
+                            }
+                        } catch (upErr) {
+                            console.warn('Gallery upload error for file:', file.name, upErr);
+                        }
+                    }
+
+                    if (statusEl) {
+                        statusEl.innerText = addedCount > 0 ? `✓ ${addedCount} photo(s) added.` : '';
+                        setTimeout(() => {
+                            const sEl = document.getElementById('galleryUploadStatus');
+                            if (sEl) sEl.innerText = '';
+                        }, 3500);
+                    }
+
+                    if (hiddenInput) hiddenInput.value = JSON.stringify(currentGallery);
+                    if (this.editingArticle) {
+                        this.editingArticle.gallery_images = currentGallery;
+                    }
+                    if (countBadge) countBadge.innerText = `${currentGallery.length} photos attached`;
+                    if (container) {
+                        container.innerHTML = currentGallery.map((imgUrl, index) => `
+                            <div class="gallery-thumb-item" data-index="${index}">
+                                <img src="${imgUrl}" alt="Gallery photo ${index + 1}" />
+                                <button type="button" class="btn-remove-gallery-img" data-index="${index}" title="Remove photo">&times;</button>
+                            </div>
+                        `).join('');
+                        wireGalleryRemoveButtons();
+                    }
+
+                    storyGalleryFiles.value = '';
                 });
             }
 
@@ -2011,6 +2297,12 @@ Besides, he has been editing several other english magazines and periodicals as 
                         return;
                     }
 
+                    const galleryStatus = document.getElementById('galleryUploadStatus');
+                    if (galleryStatus && galleryStatus.innerText.includes('Uploading')) {
+                        alert('Gallery photos are still uploading. Please wait a moment before saving.');
+                        return;
+                    }
+
                     if (submitBtn) {
                         submitBtn.innerText = 'Publishing story...';
                         submitBtn.disabled = true;
@@ -2022,6 +2314,15 @@ Besides, he has been editing several other english magazines and periodicals as 
                     const selectedPlacement = document.getElementById('storyPlacement').value;
                     const columnPinEl = document.getElementById('storyColumnPin');
                     const selectedColumnPin = (selectedPlacement === 'col3' && columnPinEl) ? columnPinEl.value : 'auto';
+
+                    let galleryImages = [];
+                    try {
+                        const rawGallery = document.getElementById('storyGalleryData')?.value;
+                        galleryImages = rawGallery ? JSON.parse(rawGallery) : [];
+                    } catch (e) {
+                        galleryImages = [];
+                    }
+                    if (!Array.isArray(galleryImages)) galleryImages = [];
 
                     const updated = {
                         ...this.editingArticle,
@@ -2035,6 +2336,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                         image_url: imgUrl,
                         image_caption: document.getElementById('storyCaption').value,
                         image_layout: selectedLayout,
+                        gallery_images: galleryImages,
                         is_breaking: document.getElementById('storyIsBreaking') ? document.getElementById('storyIsBreaking').checked : false,
                         body: document.getElementById('storyBody').value,
                         published: document.getElementById('storyPublished').checked

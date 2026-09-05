@@ -156,6 +156,10 @@ DMRC Managing Director confirmed that all Phase IV stations will incorporate sol
         image_url: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800&auto=format&fit=crop&q=80",
         image_caption: "DMRC technicians reviewing underground tracks in the Golden Line tunnel",
         image_layout: "banner",
+        gallery_images: [
+            "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800&auto=format&fit=crop&q=80",
+            "https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&auto=format&fit=crop&q=80"
+        ],
         views: 1250,
         author_name: "PRIYA SHARMA",
         placement: "col3",
@@ -550,6 +554,13 @@ class DataStore {
                         let caption = a.image_caption || '';
 
                         // If native columns were missing, check if caption had metadata
+                        let gallery = [];
+                        if (Array.isArray(a.gallery_images)) {
+                            gallery = a.gallery_images;
+                        } else if (typeof a.gallery_images === 'string' && a.gallery_images.trim().startsWith('[')) {
+                            try { gallery = JSON.parse(a.gallery_images); } catch (e) {}
+                        }
+
                         const metaMatch = caption.match(/<!--dnl:(.*?)-->/);
                         if (metaMatch) {
                             try {
@@ -557,14 +568,18 @@ class DataStore {
                                 if (!layout && meta.layout) layout = meta.layout;
                                 if (typeof breaking !== 'boolean' && typeof meta.breaking === 'boolean') breaking = meta.breaking;
                                 if ((views === undefined || views === null) && meta.views !== undefined) views = meta.views;
+                                if ((!gallery || gallery.length === 0) && Array.isArray(meta.gallery)) gallery = meta.gallery;
                             } catch (e) {}
                             caption = caption.replace(/<!--dnl:.*?-->/g, '').trim();
                         }
 
-                        // Preserving existing cached local layout if not found above
+                        // Preserving existing cached local layout or gallery if not found above
                         const loc = localArticles.find(l => l.id === a.id);
                         if (!layout && loc && loc.image_layout) {
                             layout = loc.image_layout;
+                        }
+                        if ((!gallery || gallery.length === 0) && loc && Array.isArray(loc.gallery_images) && loc.gallery_images.length > 0) {
+                            gallery = loc.gallery_images;
                         }
 
                         return {
@@ -572,7 +587,8 @@ class DataStore {
                             image_caption: caption,
                             image_layout: layout || 'top',
                             is_breaking: !!breaking,
-                            views: parseInt(views, 10) || 0
+                            views: parseInt(views, 10) || 0,
+                            gallery_images: Array.isArray(gallery) ? gallery.filter(Boolean) : []
                         };
                     });
 
@@ -906,6 +922,7 @@ class DataStore {
             image_layout: article.image_layout || 'top',
             is_breaking: !!article.is_breaking,
             views: parseInt(article.views, 10) || 0,
+            gallery_images: Array.isArray(article.gallery_images) ? article.gallery_images.filter(Boolean) : [],
             updated_at: new Date().toISOString()
         };
 
@@ -966,6 +983,7 @@ class DataStore {
                     sort_order: toSave.sort_order || 0,
                     published: typeof toSave.published === 'boolean' ? toSave.published : true,
                     published_at: toSave.published_at || new Date().toISOString(),
+                    gallery_images: toSave.gallery_images || [],
                     updated_at: new Date().toISOString()
                 };
 
@@ -981,15 +999,25 @@ class DataStore {
                     .upsert(dbArticle, { onConflict: 'id' });
 
                 // If native columns do not exist in Supabase, retry without them
-                if (error && (error.message.includes('image_layout') || error.message.includes('column_pin') || error.code === '42703')) {
-                    console.warn('ℹ️ One or more native columns not detected in Supabase, saving with metadata safety net...');
+                if (error && (error.message.includes('gallery_images') || error.message.includes('image_layout') || error.message.includes('column_pin') || error.code === '42703')) {
+                    console.warn('ℹ️ Native column note detected in Supabase, saving with metadata safety net...');
                     this.schemaHasLayoutColumns = false;
                     const cleanCap = (toSave.image_caption || '').replace(/<!--dnl:.*?-->/g, '').trim();
-                    const metaTag = `<!--dnl:{"layout":"${toSave.image_layout || 'top'}","breaking":${!!toSave.is_breaking},"views":${toSave.views || 0},"pin":"${toSave.column_pin || 'auto'}"}-->`;
+                    const metaObj = {
+                        layout: toSave.image_layout || 'top',
+                        breaking: !!toSave.is_breaking,
+                        views: toSave.views || 0,
+                        pin: toSave.column_pin || 'auto'
+                    };
+                    if (toSave.gallery_images && toSave.gallery_images.length > 0) {
+                        metaObj.gallery = toSave.gallery_images;
+                    }
+                    const metaTag = `<!--dnl:${JSON.stringify(metaObj)}-->`;
                     delete dbArticle.image_layout;
                     delete dbArticle.is_breaking;
                     delete dbArticle.views;
                     delete dbArticle.column_pin;
+                    delete dbArticle.gallery_images;
                     dbArticle.image_caption = cleanCap ? `${cleanCap} ${metaTag}` : metaTag;
 
                     const retry = await this.supabase
