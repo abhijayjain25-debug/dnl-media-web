@@ -157,8 +157,9 @@ DMRC Managing Director confirmed that all Phase IV stations will incorporate sol
         image_caption: "DMRC technicians reviewing underground tracks in the Golden Line tunnel",
         image_layout: "banner",
         gallery_images: [
-            "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=800&auto=format&fit=crop&q=80",
-            "https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&auto=format&fit=crop&q=80"
+            "https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&auto=format&fit=crop&q=80",
+            "https://images.unsplash.com/photo-1517649763962-0c623266ddc0?w=800&auto=format&fit=crop&q=80",
+            "https://images.unsplash.com/photo-1508873696983-2df5703bc20d?w=800&auto=format&fit=crop&q=80"
         ],
         views: 1250,
         author_name: "PRIYA SHARMA",

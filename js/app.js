@@ -999,12 +999,130 @@ Besides, he has been editing several other english magazines and periodicals as 
                 </div>
             `;
 
-            // Figure element helper
-            const figureHtml = article.image_url ? `
-                <figure class="${layout === 'banner' ? 'article-hero-banner' : (layout === 'left' || layout === 'right' ? 'article-float-figure' : 'article-detail-figure')}">
-                    <img src="${article.image_url}" alt="${article.image_caption || article.headline}" loading="eager" />
-                    ${article.image_caption ? `<figcaption class="lead-caption">${article.image_caption}</figcaption>` : ''}
-                </figure>
+            // ── Story Photographs & Collage Assembly ───────────────────
+            const rawGallery = Array.isArray(article.gallery_images) ? article.gallery_images.filter(Boolean) : [];
+            const mainImageUrl = article.image_url || (rawGallery.length > 0 ? rawGallery[0] : null);
+
+            // Deduplicate all photos (main + gallery) for unified lightbox
+            const seenPhotos = new Set();
+            const allStoryPhotos = [];
+            if (mainImageUrl) {
+                seenPhotos.add(mainImageUrl);
+                allStoryPhotos.push({
+                    url: mainImageUrl,
+                    caption: article.image_caption || article.headline
+                });
+            }
+            rawGallery.forEach((imgUrl) => {
+                if (!seenPhotos.has(imgUrl)) {
+                    seenPhotos.add(imgUrl);
+                    allStoryPhotos.push({
+                        url: imgUrl,
+                        caption: `${article.headline} - Photograph ${allStoryPhotos.length + 1}`
+                    });
+                }
+            });
+
+            const additionalPhotos = allStoryPhotos.slice(1);
+            const hasGallery = additionalPhotos.length > 0;
+
+            const figureClass = layout === 'banner' 
+                ? 'article-hero-banner' 
+                : (layout === 'left' || layout === 'right' ? 'article-float-figure' : 'article-detail-figure');
+
+            let figureHtml = '';
+            if (mainImageUrl) {
+                if (!hasGallery) {
+                    // Single photo: exact original behavior
+                    figureHtml = `
+                        <figure class="${figureClass}">
+                            <img src="${mainImageUrl}" alt="${article.image_caption || article.headline}" loading="eager" class="js-gallery-trigger" data-index="0" style="cursor: pointer;" />
+                            ${article.image_caption ? `<figcaption class="lead-caption">${article.image_caption}</figcaption>` : ''}
+                        </figure>
+                    `;
+                } else {
+                    // Collage combining main photo + gallery photos, styled to fit the figureClass
+                    let sidePhotosHtml = '';
+                    if (additionalPhotos.length === 1) {
+                        sidePhotosHtml = `
+                            <div class="collage-side-item js-gallery-trigger" data-index="1" tabindex="0" role="button" aria-label="Open photo 2 in lightbox">
+                                <img src="${additionalPhotos[0].url}" alt="${article.headline} - Photo 2" loading="lazy" />
+                                <div class="collage-item-overlay">
+                                    <span class="collage-zoom-tag">🔍</span>
+                                </div>
+                            </div>
+                        `;
+                    } else if (additionalPhotos.length === 2) {
+                        sidePhotosHtml = `
+                            <div class="collage-side-item js-gallery-trigger" data-index="1" tabindex="0" role="button" aria-label="Open photo 2 in lightbox">
+                                <img src="${additionalPhotos[0].url}" alt="${article.headline} - Photo 2" loading="lazy" />
+                                <div class="collage-item-overlay">
+                                    <span class="collage-zoom-tag">🔍</span>
+                                </div>
+                            </div>
+                            <div class="collage-side-item js-gallery-trigger" data-index="2" tabindex="0" role="button" aria-label="Open photo 3 in lightbox">
+                                <img src="${additionalPhotos[1].url}" alt="${article.headline} - Photo 3" loading="lazy" />
+                                <div class="collage-item-overlay">
+                                    <span class="collage-zoom-tag">🔍</span>
+                                </div>
+                            </div>
+                        `;
+                    } else if (additionalPhotos.length >= 3) {
+                        const extraCount = additionalPhotos.length - 2;
+                        sidePhotosHtml = `
+                            <div class="collage-side-item js-gallery-trigger" data-index="1" tabindex="0" role="button" aria-label="Open photo 2 in lightbox">
+                                <img src="${additionalPhotos[0].url}" alt="${article.headline} - Photo 2" loading="lazy" />
+                                <div class="collage-item-overlay">
+                                    <span class="collage-zoom-tag">🔍</span>
+                                </div>
+                            </div>
+                            <div class="collage-side-item js-gallery-trigger" data-index="2" tabindex="0" role="button" aria-label="Open photo 3 and browse all ${allStoryPhotos.length} photos in lightbox">
+                                <img src="${additionalPhotos[1].url}" alt="${article.headline} - Photo 3" loading="lazy" />
+                                <div class="collage-more-overlay">
+                                    <span class="collage-more-count">+${extraCount}</span>
+                                    <span class="collage-more-label">MORE</span>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    figureHtml = `
+                        <figure class="${figureClass} article-collage-figure">
+                            <div class="article-photo-collage">
+                                <div class="collage-main-item js-gallery-trigger" data-index="0" tabindex="0" role="button" aria-label="Open main photo in lightbox">
+                                    <img src="${mainImageUrl}" alt="${article.image_caption || article.headline}" loading="eager" />
+                                    <div class="collage-item-overlay">
+                                        <span class="collage-zoom-tag">🔍 Expand</span>
+                                    </div>
+                                </div>
+                                <div class="collage-side-column">
+                                    ${sidePhotosHtml}
+                                </div>
+                            </div>
+                            ${article.image_caption ? `<figcaption class="lead-caption">${article.image_caption}</figcaption>` : ''}
+                        </figure>
+                    `;
+                }
+            }
+
+            // Lightbox Modal HTML (always rendered if story has any photos)
+            const lightboxModalHtml = allStoryPhotos.length > 0 ? `
+                <div id="articleGalleryModal" class="article-gallery-lightbox-overlay" style="display: none;" role="dialog" aria-modal="true" aria-label="Photo Gallery Lightbox" data-photos="${this.escapeHtml(JSON.stringify(allStoryPhotos.map(p => p.url)))}">
+                    <div class="article-gallery-backdrop" id="articleGalleryBackdrop"></div>
+                    <div class="article-gallery-modal-body">
+                        <div class="article-gallery-top-bar">
+                            <span id="articleGalleryCounter" class="article-gallery-counter">Photo 1 of ${allStoryPhotos.length}</span>
+                            <button type="button" id="articleGalleryCloseBtn" class="article-gallery-close-btn" aria-label="Close Gallery">&times;</button>
+                        </div>
+                        <div class="article-gallery-viewer">
+                            <button type="button" id="articleGalleryPrevBtn" class="article-gallery-arrow-btn prev" aria-label="Previous Photo">&#10094;</button>
+                            <div class="article-gallery-img-wrap">
+                                <img id="articleGalleryCurrentImg" src="" alt="Full size photo" />
+                            </div>
+                            <button type="button" id="articleGalleryNextBtn" class="article-gallery-arrow-btn next" aria-label="Next Photo">&#10095;</button>
+                        </div>
+                    </div>
+                </div>
             ` : '';
 
             // Body paragraphs helper
@@ -1060,45 +1178,6 @@ Besides, he has been editing several other english magazines and periodicals as 
                         ${bodyParagraphsHtml}
                     </div>
 
-                    ${(() => {
-                        const galleryImages = Array.isArray(article.gallery_images) ? article.gallery_images.filter(Boolean) : [];
-                        if (galleryImages.length === 0) return '';
-                        return `
-                            <section class="article-photo-gallery">
-                                <div class="gallery-header">
-                                    <span class="gallery-badge">PHOTO GALLERY</span>
-                                    <h3 class="gallery-title">ADDITIONAL PHOTOGRAPHS (${galleryImages.length})</h3>
-                                </div>
-                                <div class="gallery-grid">
-                                    ${galleryImages.map((imgUrl, idx) => `
-                                        <figure class="gallery-item js-gallery-trigger" data-index="${idx}" tabindex="0" role="button" aria-label="Open photo ${idx + 1} of ${galleryImages.length} in lightbox">
-                                            <img src="${imgUrl}" alt="${article.headline} - Photo ${idx + 1}" loading="lazy" />
-                                            <div class="gallery-item-overlay">
-                                                <span class="gallery-zoom-icon">🔍 Tap to expand</span>
-                                            </div>
-                                        </figure>
-                                    `).join('')}
-                                </div>
-                            </section>
-                            <div id="articleGalleryModal" class="article-gallery-lightbox-overlay" style="display: none;" role="dialog" aria-modal="true" aria-label="Photo Gallery Lightbox">
-                                <div class="article-gallery-backdrop" id="articleGalleryBackdrop"></div>
-                                <div class="article-gallery-modal-body">
-                                    <div class="article-gallery-top-bar">
-                                        <span id="articleGalleryCounter" class="article-gallery-counter">Photo 1 of ${galleryImages.length}</span>
-                                        <button type="button" id="articleGalleryCloseBtn" class="article-gallery-close-btn" aria-label="Close Gallery">&times;</button>
-                                    </div>
-                                    <div class="article-gallery-viewer">
-                                        <button type="button" id="articleGalleryPrevBtn" class="article-gallery-arrow-btn prev" aria-label="Previous Photo">&#10094;</button>
-                                        <div class="article-gallery-img-wrap">
-                                            <img id="articleGalleryCurrentImg" src="" alt="Full size photo" />
-                                        </div>
-                                        <button type="button" id="articleGalleryNextBtn" class="article-gallery-arrow-btn next" aria-label="Next Photo">&#10095;</button>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    })()}
-
                     ${socialToolbarHtml}
 
                     <p style="margin-top: 1.5rem;">
@@ -1106,6 +1185,8 @@ Besides, he has been editing several other english magazines and periodicals as 
                     </p>
 
                     ${relatedHtml}
+
+                    ${lightboxModalHtml}
                 </article>
             `;
         }
@@ -1921,7 +2002,22 @@ Besides, he has been editing several other english magazines and periodicals as 
             // Article Photo Gallery Lightbox Handlers
             const galleryModal = document.getElementById('articleGalleryModal');
             if (galleryModal) {
-                const galleryItems = Array.from(document.querySelectorAll('.js-gallery-trigger'));
+                let photoUrls = [];
+                try {
+                    const raw = galleryModal.getAttribute('data-photos');
+                    photoUrls = raw ? JSON.parse(raw) : [];
+                } catch (e) {
+                    photoUrls = [];
+                }
+
+                const galleryTriggers = Array.from(document.querySelectorAll('.js-gallery-trigger'));
+                if (photoUrls.length === 0) {
+                    galleryTriggers.forEach(t => {
+                        const img = t.querySelector('img');
+                        if (img && img.src) photoUrls.push(img.src);
+                    });
+                }
+
                 const modalImg = document.getElementById('articleGalleryCurrentImg');
                 const counterEl = document.getElementById('articleGalleryCounter');
                 const prevBtn = document.getElementById('articleGalleryPrevBtn');
@@ -1930,20 +2026,21 @@ Besides, he has been editing several other english magazines and periodicals as 
                 const backdrop = document.getElementById('articleGalleryBackdrop');
 
                 let currentIndex = 0;
-                const total = galleryItems.length;
+                const total = photoUrls.length;
 
                 const showGalleryPhoto = (idx) => {
                     if (total === 0) return;
                     currentIndex = (idx + total) % total;
-                    const trigger = galleryItems[currentIndex];
-                    const img = trigger ? trigger.querySelector('img') : null;
-                    if (img && modalImg) {
-                        modalImg.src = img.src;
-                        modalImg.alt = img.alt || `Photo ${currentIndex + 1}`;
+                    const url = photoUrls[currentIndex];
+                    if (url && modalImg) {
+                        modalImg.src = url;
+                        modalImg.alt = `Photograph ${currentIndex + 1} of ${total}`;
                     }
                     if (counterEl) {
                         counterEl.innerText = `Photo ${currentIndex + 1} of ${total}`;
                     }
+                    if (prevBtn) prevBtn.style.display = total > 1 ? 'flex' : 'none';
+                    if (nextBtn) nextBtn.style.display = total > 1 ? 'flex' : 'none';
                 };
 
                 const openGalleryModal = (startIdx) => {
@@ -1957,8 +2054,9 @@ Besides, he has been editing several other english magazines and periodicals as 
                     document.body.style.overflow = '';
                 };
 
-                galleryItems.forEach(item => {
-                    item.addEventListener('click', () => {
+                galleryTriggers.forEach(item => {
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
                         const idx = parseInt(item.getAttribute('data-index'), 10) || 0;
                         openGalleryModal(idx);
                     });
