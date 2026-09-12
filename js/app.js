@@ -1536,7 +1536,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                                     <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem; flex-wrap: wrap;">
                                         ${isLead ? `<span class="badge-lead-banner">👑 LEAD BANNER</span>` : ''}
                                         ${art.is_breaking ? `<span class="breaking-status-badge">⚡ BREAKING</span>` : ''}
-                                        <span style="font-family: var(--font-condensed); font-size: 10px; color: var(--color-stone); background: var(--color-tint); border: 1px solid var(--color-rule); border-radius: 3px; padding: 1px 5px; letter-spacing: 0.06em;">#${art.sort_order || 0}</span>
+                                        <span style="font-family: var(--font-condensed); font-size: 10px; color: var(--color-stone); background: var(--color-tint); border: 1px solid var(--color-rule); border-radius: 3px; padding: 1px 5px; letter-spacing: 0.06em;">#${art.sort_order ?? 0}</span>
                                         <p style="font-family: var(--font-serifhead); font-weight: 700; font-size: 16px;">${art.headline}</p>
                                     </div>
                                     <p style="font-family: var(--font-condensed); font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--color-stone);">

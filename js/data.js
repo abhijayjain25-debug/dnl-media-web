@@ -828,7 +828,11 @@ class DataStore {
                 image_layout: a.image_layout || 'top',
                 is_breaking: !!a.is_breaking,
                 views: parseInt(a.views, 10) || 0
-            })).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+            })).sort((a, b) => {
+                const orderA = (typeof a.sort_order === 'number' && !isNaN(a.sort_order)) ? a.sort_order : 0;
+                const orderB = (typeof b.sort_order === 'number' && !isNaN(b.sort_order)) ? b.sort_order : 0;
+                return orderA - orderB;
+            });
         } catch (e) {
             return INITIAL_ARTICLES;
         }
@@ -930,6 +934,17 @@ class DataStore {
         if (toSave.id) {
             const index = articles.findIndex(a => a.id === toSave.id);
             if (index !== -1) {
+                // If sort_order is not provided on edit, preserve existing article's sort_order
+                if (typeof toSave.sort_order !== 'number' || isNaN(toSave.sort_order)) {
+                    toSave.sort_order = (typeof articles[index].sort_order === 'number' && !isNaN(articles[index].sort_order)) ? articles[index].sort_order : 0;
+                }
+                // If an existing draft is being published for the first time, place it at the top
+                if (!articles[index].published && toSave.published) {
+                    const orders = articles.map(a => (typeof a.sort_order === 'number' && !isNaN(a.sort_order)) ? a.sort_order : 0);
+                    const minOrder = orders.length > 0 ? Math.min(...orders) : 0;
+                    toSave.sort_order = minOrder - 10;
+                    toSave.published_at = new Date().toISOString();
+                }
                 articles[index] = toSave;
             } else {
                 articles.push(toSave);
@@ -938,8 +953,10 @@ class DataStore {
             toSave.id = 'art-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
             toSave.created_at = new Date().toISOString();
             toSave.published_at = toSave.published ? new Date().toISOString() : null;
-            const maxOrder = Math.max(0, ...articles.map(a => a.sort_order || 0));
-            toSave.sort_order = maxOrder + 10;
+            // Brand new stories get a lower sort_order than any existing story so they sort to the very top
+            const orders = articles.map(a => (typeof a.sort_order === 'number' && !isNaN(a.sort_order)) ? a.sort_order : 0);
+            const minOrder = orders.length > 0 ? Math.min(...orders) : 0;
+            toSave.sort_order = minOrder - 10;
             articles.push(toSave);
         }
 
@@ -958,6 +975,13 @@ class DataStore {
                 }
             });
         }
+
+        // Always keep articles sorted ascending by sort_order (lowest = newest / top of page)
+        articles.sort((a, b) => {
+            const orderA = (typeof a.sort_order === 'number' && !isNaN(a.sort_order)) ? a.sort_order : 0;
+            const orderB = (typeof b.sort_order === 'number' && !isNaN(b.sort_order)) ? b.sort_order : 0;
+            return orderA - orderB;
+        });
 
         // 1. Optimistically update local storage safely
         try {
@@ -981,7 +1005,7 @@ class DataStore {
                     author_name: toSave.author_name || 'SYED WAJID',
                     placement: toSave.placement || 'col3',
                     column_pin: toSave.column_pin || 'auto',
-                    sort_order: toSave.sort_order || 0,
+                    sort_order: (typeof toSave.sort_order === 'number' && !isNaN(toSave.sort_order)) ? toSave.sort_order : 0,
                     published: typeof toSave.published === 'boolean' ? toSave.published : true,
                     published_at: toSave.published_at || new Date().toISOString(),
                     gallery_images: toSave.gallery_images || [],
@@ -1101,8 +1125,8 @@ class DataStore {
         if (swapIdx < 0 || swapIdx >= articles.length) return;
 
         // Swap sort_order values
-        const aOrder = articles[idx].sort_order || 0;
-        const bOrder = articles[swapIdx].sort_order || 0;
+        const aOrder = (typeof articles[idx].sort_order === 'number' && !isNaN(articles[idx].sort_order)) ? articles[idx].sort_order : 0;
+        const bOrder = (typeof articles[swapIdx].sort_order === 'number' && !isNaN(articles[swapIdx].sort_order)) ? articles[swapIdx].sort_order : 0;
         // If they happen to share the same sort_order, nudge them apart
         const newA = bOrder === aOrder ? (direction === 'up' ? bOrder - 1 : bOrder + 1) : bOrder;
         const newB = aOrder;
@@ -1115,7 +1139,11 @@ class DataStore {
         articles[swapIdx].sort_order = newB;
 
         // Re-sort so localStorage stays consistent
-        articles.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+        articles.sort((a, b) => {
+            const orderA = (typeof a.sort_order === 'number' && !isNaN(a.sort_order)) ? a.sort_order : 0;
+            const orderB = (typeof b.sort_order === 'number' && !isNaN(b.sort_order)) ? b.sort_order : 0;
+            return orderA - orderB;
+        });
         localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
 
         // Persist both rows to Supabase (use IDs captured before re-sort)
