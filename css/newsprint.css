@@ -2125,6 +2125,44 @@ button, input, select, textarea {
         max-width: 100%;
         margin: 0 0 1.25rem 0;
     }
+
+    /* Mobile responsive image sizing: scale to container width naturally without unwanted cropping */
+    .article-detail-figure,
+    .article-float-figure,
+    .article-hero-banner,
+    .article-lead-media-wrap {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    .article-detail-figure img,
+    .article-float-figure img,
+    .article-hero-banner img,
+    .article-lead-media-wrap img {
+        width: 100% !important;
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: 75vh !important;
+        object-fit: contain !important;
+    }
+
+    /* Mobile gallery badge: clearly visible & easy to tap */
+    .gallery-badge-overlay {
+        top: 12px;
+        right: 12px;
+        padding: 7px 16px;
+        gap: 7px;
+    }
+
+    .gallery-badge-icon svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .gallery-badge-count {
+        font-size: 16px;
+    }
 }
 
 .story-table-row--lead {
@@ -2929,199 +2967,90 @@ button, input, select, textarea {
     transform: scale(1.15);
 }
 
-/* Public Article Photo Collage Block */
-.article-collage-figure {
-    overflow: hidden;
-}
-
-.article-photo-collage {
-    display: flex;
-    gap: 6px;
+/* Public Article Lead Media Wrap & Instagram-style Gallery Indicator */
+.article-lead-media-wrap {
+    position: relative;
     width: 100%;
-    box-sizing: border-box;
+    max-width: 100%;
+    display: block;
+    overflow: hidden;
+    background: #0f172a;
     border: 1px solid var(--color-ink);
-    background: #111;
-    overflow: hidden;
-    position: relative;
 }
 
-/* Flexible aspect-ratio per layout container — respects parent layout dimensions! */
-/* 1. Hero Banner: Wide header banner */
-.article-hero-banner .article-photo-collage {
-    aspect-ratio: 16 / 9;
-    max-height: 480px;
-}
-
-/* 2. Standard Top Column: Regular column width */
-.article-detail-figure .article-photo-collage {
-    aspect-ratio: 16 / 10;
-    max-height: 440px;
-}
-
-/* 3. Floated Left or Right: Compact 4:3 ratio fitting within the floated box */
-.article-float-figure .article-photo-collage {
-    aspect-ratio: 4 / 3;
-    max-height: 310px;
-}
-
-/* Collage Main Photo (~2/3 width) */
-.collage-main-item {
-    position: relative;
-    flex: 2;
-    min-width: 0;
-    height: 100%;
-    overflow: hidden;
-    cursor: pointer;
-    background: #111;
-}
-
-.collage-main-item img {
+.article-lead-media-wrap img {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
     display: block;
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+    border: none !important;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
 }
 
-.collage-main-item:hover img {
-    transform: scale(1.025);
-    opacity: 0.94;
+.article-lead-media-wrap:hover img {
+    opacity: 0.96;
+    transform: scale(1.015);
 }
 
-/* Collage Side Column (~1/3 width) */
-.collage-side-column {
-    position: relative;
-    flex: 1;
-    min-width: 0;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+.article-lead-media-wrap:focus-visible {
+    outline: 2px solid var(--color-brandred);
+    outline-offset: 2px;
 }
 
-.collage-side-item {
-    position: relative;
-    flex: 1;
-    min-height: 0;
-    overflow: hidden;
+/* Instagram-style "+N" Pill Badge Overlay (Noticeably Larger & Touch-Friendly) */
+.gallery-badge-overlay {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: #ffffff;
+    border: 1.5px solid rgba(255, 255, 255, 0.42);
+    border-radius: 999px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
     cursor: pointer;
-    background: #111;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    z-index: 5;
+    user-select: none;
 }
 
-.collage-side-item img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
-    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+.article-lead-media-wrap:hover .gallery-badge-overlay,
+.gallery-badge-overlay:hover {
+    background: rgba(15, 23, 42, 0.98);
+    transform: scale(1.06);
+    border-color: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 6px 22px rgba(0, 0, 0, 0.65);
 }
 
-.collage-side-item:hover img {
-    transform: scale(1.04);
-    opacity: 0.92;
+.gallery-badge-overlay:active {
+    transform: scale(0.96);
 }
 
-/* Zoom Hover Indicator */
-.collage-item-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0) 50%);
-    display: flex;
-    align-items: flex-end;
-    padding: 0.4rem 0.55rem;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    pointer-events: none;
-}
-
-.collage-main-item:hover .collage-item-overlay,
-.collage-side-item:hover .collage-item-overlay {
-    opacity: 1;
-}
-
-.collage-zoom-tag {
-    font-family: var(--font-headline);
-    font-size: 10px;
-    font-weight: 700;
-    color: #fff;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
-}
-
-/* "+N MORE" Overlay on last visible thumbnail */
-.collage-more-overlay {
-    position: absolute;
-    inset: 0;
-    background: rgba(15, 23, 42, 0.78);
-    backdrop-filter: blur(2px);
-    display: flex;
-    flex-direction: column;
+.gallery-badge-icon {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
-    text-align: center;
-    padding: 0.25rem;
-    transition: background 0.2s ease;
+    color: #f1f5f9;
 }
 
-.collage-side-item:hover .collage-more-overlay {
-    background: rgba(15, 23, 42, 0.88);
+.gallery-badge-icon svg {
+    width: 18px;
+    height: 18px;
+    display: block;
 }
 
-.collage-more-count {
-    font-family: var(--font-headline);
-    font-size: 22px;
-    font-weight: 900;
-    line-height: 1;
-    color: #fff;
-}
-
-.collage-more-label {
-    font-family: var(--font-headline);
-    font-size: 9px;
+.gallery-badge-count {
+    font-family: var(--font-condensed, "Oswald", sans-serif);
+    font-size: 18px;
     font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-top: 2px;
-    color: #cbd5e1;
-}
-
-.article-float-figure .collage-more-count {
-    font-size: 17px;
-}
-
-.article-float-figure .collage-more-label {
-    font-size: 8px;
-}
-
-/* Responsive adjustment for small screens */
-@media (max-width: 680px) {
-    .article-photo-collage {
-        flex-direction: column;
-        aspect-ratio: auto;
-        background: transparent;
-        border: none;
-        gap: 6px;
-    }
-
-    .collage-main-item {
-        width: 100%;
-        height: 220px;
-        border: 1px solid var(--color-ink);
-    }
-
-    .collage-side-column {
-        width: 100%;
-        flex-direction: row;
-        height: 90px;
-        gap: 6px;
-    }
-
-    .collage-side-item {
-        height: 100%;
-        border: 1px solid var(--color-ink);
-    }
+    line-height: 1;
+    letter-spacing: 0.05em;
+    color: #ffffff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 /* Photo Gallery Lightbox */

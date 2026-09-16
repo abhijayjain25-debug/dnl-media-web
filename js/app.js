@@ -1032,77 +1032,29 @@ Besides, he has been editing several other english magazines and periodicals as 
 
             let figureHtml = '';
             if (mainImageUrl) {
-                if (!hasGallery) {
-                    // Single photo: exact original behavior
-                    figureHtml = `
-                        <figure class="${figureClass}">
-                            <img src="${mainImageUrl}" alt="${article.image_caption || article.headline}" loading="eager" class="js-gallery-trigger" data-index="0" style="cursor: pointer;" />
-                            ${article.image_caption ? `<figcaption class="lead-caption">${article.image_caption}</figcaption>` : ''}
-                        </figure>
-                    `;
-                } else {
-                    // Collage combining main photo + gallery photos, styled to fit the figureClass
-                    let sidePhotosHtml = '';
-                    if (additionalPhotos.length === 1) {
-                        sidePhotosHtml = `
-                            <div class="collage-side-item js-gallery-trigger" data-index="1" tabindex="0" role="button" aria-label="Open photo 2 in lightbox">
-                                <img src="${additionalPhotos[0].url}" alt="${article.headline} - Photo 2" loading="lazy" />
-                                <div class="collage-item-overlay">
-                                    <span class="collage-zoom-tag">🔍</span>
-                                </div>
-                            </div>
-                        `;
-                    } else if (additionalPhotos.length === 2) {
-                        sidePhotosHtml = `
-                            <div class="collage-side-item js-gallery-trigger" data-index="1" tabindex="0" role="button" aria-label="Open photo 2 in lightbox">
-                                <img src="${additionalPhotos[0].url}" alt="${article.headline} - Photo 2" loading="lazy" />
-                                <div class="collage-item-overlay">
-                                    <span class="collage-zoom-tag">🔍</span>
-                                </div>
-                            </div>
-                            <div class="collage-side-item js-gallery-trigger" data-index="2" tabindex="0" role="button" aria-label="Open photo 3 in lightbox">
-                                <img src="${additionalPhotos[1].url}" alt="${article.headline} - Photo 3" loading="lazy" />
-                                <div class="collage-item-overlay">
-                                    <span class="collage-zoom-tag">🔍</span>
-                                </div>
-                            </div>
-                        `;
-                    } else if (additionalPhotos.length >= 3) {
-                        const extraCount = additionalPhotos.length - 2;
-                        sidePhotosHtml = `
-                            <div class="collage-side-item js-gallery-trigger" data-index="1" tabindex="0" role="button" aria-label="Open photo 2 in lightbox">
-                                <img src="${additionalPhotos[0].url}" alt="${article.headline} - Photo 2" loading="lazy" />
-                                <div class="collage-item-overlay">
-                                    <span class="collage-zoom-tag">🔍</span>
-                                </div>
-                            </div>
-                            <div class="collage-side-item js-gallery-trigger" data-index="2" tabindex="0" role="button" aria-label="Open photo 3 and browse all ${allStoryPhotos.length} photos in lightbox">
-                                <img src="${additionalPhotos[1].url}" alt="${article.headline} - Photo 3" loading="lazy" />
-                                <div class="collage-more-overlay">
-                                    <span class="collage-more-count">+${extraCount}</span>
-                                    <span class="collage-more-label">MORE</span>
-                                </div>
-                            </div>
-                        `;
-                    }
+                const totalPhotosCount = allStoryPhotos.length;
+                const galleryBadgeHtml = hasGallery ? `
+                    <div class="gallery-badge-overlay" title="View all ${totalPhotosCount} photographs in lightbox">
+                        <span class="gallery-badge-icon" aria-hidden="true">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                                <circle cx="8.5" cy="8.5" r="1.5"/>
+                                <polyline points="21 15 16 10 5 21"/>
+                            </svg>
+                        </span>
+                        <span class="gallery-badge-count">+${additionalPhotos.length}</span>
+                    </div>
+                ` : '';
 
-                    figureHtml = `
-                        <figure class="${figureClass} article-collage-figure">
-                            <div class="article-photo-collage">
-                                <div class="collage-main-item js-gallery-trigger" data-index="0" tabindex="0" role="button" aria-label="Open main photo in lightbox">
-                                    <img src="${mainImageUrl}" alt="${article.image_caption || article.headline}" loading="eager" />
-                                    <div class="collage-item-overlay">
-                                        <span class="collage-zoom-tag">🔍 Expand</span>
-                                    </div>
-                                </div>
-                                <div class="collage-side-column">
-                                    ${sidePhotosHtml}
-                                </div>
-                            </div>
-                            ${article.image_caption ? `<figcaption class="lead-caption">${article.image_caption}</figcaption>` : ''}
-                        </figure>
-                    `;
-                }
+                figureHtml = `
+                    <figure class="${figureClass}">
+                        <div class="article-lead-media-wrap js-gallery-trigger" data-index="0" tabindex="0" role="button" aria-label="${hasGallery ? `Open story photograph gallery (${totalPhotosCount} photos) in lightbox` : 'Open photograph in lightbox'}" style="cursor: pointer;">
+                            <img src="${mainImageUrl}" alt="${article.image_caption || article.headline}" loading="eager" />
+                            ${galleryBadgeHtml}
+                        </div>
+                        ${article.image_caption ? `<figcaption class="lead-caption">${article.image_caption}</figcaption>` : ''}
+                    </figure>
+                `;
             }
 
             // Lightbox Modal HTML (always rendered if story has any photos)
