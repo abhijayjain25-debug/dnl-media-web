@@ -548,11 +548,15 @@ class DataStore {
             if (!articlesError && articlesData) {
                 if (articlesData.length > 0) {
                     const localArticles = this.getArticles();
-                    const formatted = articlesData.map(a => {
+                    let formatted = articlesData.map(a => {
                         let layout = a.image_layout;
                         let breaking = a.is_breaking;
                         let views = a.views;
-                        let caption = a.image_caption || '';
+                        let caption = (a.image_caption || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ');
+                        let headline = (a.headline || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim();
+                        let standfirst = (a.standfirst || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim();
+                        let body = (a.body || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ');
+                        let author = (a.author_name || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim();
 
                         // If native columns were missing, check if caption had metadata
                         let gallery = [];
@@ -585,9 +589,14 @@ class DataStore {
 
                         return {
                             ...a,
+                            headline: headline,
+                            standfirst: standfirst,
+                            body: body,
+                            author_name: author || 'SYED WAJID',
                             image_caption: caption,
                             image_layout: layout || 'top',
                             is_breaking: !!breaking,
+                            published: typeof a.published === 'boolean' ? a.published : true,
                             views: parseInt(views, 10) || 0,
                             gallery_images: Array.isArray(gallery) ? gallery.filter(Boolean) : []
                         };
@@ -921,6 +930,11 @@ class DataStore {
 
         const toSave = {
             ...article,
+            headline: (article.headline || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim(),
+            standfirst: (article.standfirst || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim(),
+            body: (article.body || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' '),
+            author_name: (article.author_name || 'SYED WAJID').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim(),
+            image_caption: (article.image_caption || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' '),
             slug,
             placement: normalizedPlacement,
             column_pin: (article.column_pin || 'auto').toString().trim().toLowerCase(),
@@ -1175,7 +1189,8 @@ class DataStore {
 
     parseBody(bodyText) {
         if (!bodyText) return [];
-        return bodyText
+        const clean = bodyText.replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ');
+        return clean
             .split(/\n{2,}/)
             .map(p => p.trim())
             .filter(Boolean)

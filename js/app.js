@@ -60,6 +60,11 @@
                 .replace(/'/g, '&#039;');
         }
 
+        cleanText(str) {
+            if (!str) return '';
+            return String(str).replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ');
+        }
+
         showToast(msg, type = 'success') {
             const existing = document.getElementById('dnl-toast');
             if (existing) existing.remove();
@@ -297,10 +302,10 @@
                     ` : ''}
 
                     <h1 class="lead-headline">
-                        <a href="#/article/${lead.slug}">${lead.headline}</a>
+                        <a href="#/article/${lead.slug}">${this.cleanText(lead.headline)}</a>
                     </h1>
 
-                    ${lead.standfirst ? `<p class="lead-standfirst">${lead.standfirst}</p>` : ''}
+                    ${lead.standfirst ? `<p class="lead-standfirst">${this.cleanText(lead.standfirst)}</p>` : ''}
 
                     <div class="story-grid-split">
                         <div>
@@ -768,9 +773,9 @@ Besides, he has been editing several other english magazines and periodicals as 
                                 </figure>
                             ` : ''}
                             <h2 class="cont-headline">
-                                <a href="#/article/${art.slug}">${art.headline}</a>
+                                <a href="#/article/${art.slug}">${this.cleanText(art.headline)}</a>
                             </h2>
-                            ${art.standfirst ? `<p class="cont-standfirst">${art.standfirst}</p>` : ''}
+                            ${art.standfirst ? `<p class="cont-standfirst">${this.cleanText(art.standfirst)}</p>` : ''}
                             ${art.author_name ? `<div class="byline-bar" style="margin: 0.4rem 0;"><p>${art.author_name}</p></div>` : ''}
                             <div class="cont-body">
                                 ${this.renderBodyExcerpt(art.body, 3)}
@@ -796,8 +801,8 @@ Besides, he has been editing several other english magazines and periodicals as 
                                 ${main.image_caption ? `<figcaption class="lead-caption">${main.image_caption}</figcaption>` : ''}
                             </figure>
                         ` : ''}
-                        <h2 class="cont-headline" style="font-size: 28px;">${'<a href="#/article/' + main.slug + '">' + main.headline + '</a>'}</h2>
-                        ${main.standfirst ? `<p class="cont-standfirst">${main.standfirst}</p>` : ''}
+                        <h2 class="cont-headline" style="font-size: 28px;">${'<a href="#/article/' + main.slug + '">' + this.cleanText(main.headline) + '</a>'}</h2>
+                        ${main.standfirst ? `<p class="cont-standfirst">${this.cleanText(main.standfirst)}</p>` : ''}
                         ${main.author_name ? `<div class="byline-bar" style="margin: 0.4rem 0;"><p>${main.author_name}</p></div>` : ''}
                         <div class="cont-body">
                             ${this.renderBodyExcerpt(main.body, 4)}
@@ -809,9 +814,9 @@ Besides, he has been editing several other english magazines and periodicals as 
                         <div class="cont-cell cont-cell-narrow">
                             ${sidebar.section ? `<p class="cont-section-tag">${sidebar.section.toUpperCase()}</p>` : ''}
                             <h2 class="cont-headline" style="font-size: 18px;">
-                                <a href="#/article/${sidebar.slug}">${sidebar.headline}</a>
+                                <a href="#/article/${sidebar.slug}">${this.cleanText(sidebar.headline)}</a>
                             </h2>
-                            ${sidebar.standfirst ? `<p class="cont-standfirst">${sidebar.standfirst}</p>` : ''}
+                            ${sidebar.standfirst ? `<p class="cont-standfirst">${this.cleanText(sidebar.standfirst)}</p>` : ''}
                             <div class="cont-body">
                                 ${this.renderBodyExcerpt(sidebar.body, 3)}
                             </div>
@@ -832,9 +837,9 @@ Besides, he has been editing several other english magazines and periodicals as 
                         <div class="cont-cell cont-brief ${idx === 0 ? 'cont-cell-first' : ''}">
                             ${art.section ? `<p class="cont-section-tag">${art.section.toUpperCase()}</p>` : ''}
                             <h3 class="cont-brief-headline">
-                                <a href="#/article/${art.slug}">${art.headline}</a>
+                                <a href="#/article/${art.slug}">${this.cleanText(art.headline)}</a>
                             </h3>
-                            ${art.standfirst ? `<p class="cont-standfirst" style="font-size:13px;">${art.standfirst}</p>` : ''}
+                            ${art.standfirst ? `<p class="cont-standfirst" style="font-size:13px;">${this.cleanText(art.standfirst)}</p>` : ''}
                             <div class="cont-body" style="font-size: 13px;">
                                 ${this.renderBodyExcerpt(art.body, 2)}
                             </div>
@@ -930,11 +935,11 @@ Besides, he has been editing several other english magazines and periodicals as 
             return blocks.map((b, i) => {
                 if (b.type === 'head') {
                     if (paraCount >= maxParas) return '';
-                    return `<h4 class="col-head" style="font-size: 13px; margin: 0.35rem 0 0.15rem 0;">${b.text}</h4>`;
+                    return `<h4 class="col-head" style="font-size: 13px; margin: 0.35rem 0 0.15rem 0;">${this.cleanText(b.text)}</h4>`;
                 }
                 if (paraCount >= maxParas) return '';
                 paraCount++;
-                return `<p class="${i === 0 ? 'dropcap' : ''}" style="text-indent: ${i > 0 ? '1rem' : '0'};">${b.text}</p>`;
+                return `<p class="${i === 0 ? 'dropcap' : ''}" style="text-indent: ${i > 0 ? '1rem' : '0'};">${this.cleanText(b.text)}</p>`;
             }).join('');
         }
 
@@ -1113,9 +1118,9 @@ Besides, he has been editing several other english magazines and periodicals as 
                         <span class="views-count-pill">👁️ ${article.views || 0} views</span>
                     </div>
 
-                    <h1 class="article-detail-title">${article.headline}</h1>
+                    <h1 class="article-detail-title">${this.cleanText(article.headline)}</h1>
 
-                    ${article.standfirst ? `<p class="article-detail-standfirst">${article.standfirst}</p>` : ''}
+                    ${article.standfirst ? `<p class="article-detail-standfirst">${this.cleanText(article.standfirst)}</p>` : ''}
 
                     ${article.author_name ? `
                         <p class="article-detail-byline">By ${article.author_name}</p>
