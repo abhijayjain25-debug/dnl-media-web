@@ -3,7 +3,7 @@
  * Broadsheet single-scroll newspaper edition
  */
 
-const SECTIONS = ['Nation', 'City', 'World', 'Politics', 'Business', 'Sport', 'Culture', 'Opinion'];
+const SECTIONS = ['Nation', 'City', 'World', 'Politics', 'Business', 'Sport', 'Culture', 'Opinion', 'Interview'];
 
 const DEFAULT_SETTINGS = {
     id: 1,
@@ -1189,7 +1189,10 @@ class DataStore {
 
     parseBody(bodyText) {
         if (!bodyText) return [];
-        const clean = bodyText.replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ');
+        const clean = bodyText
+            .replace(/[\u200B-\u200D\uFEFF]/g, '')
+            .replace(/\u00a0/g, ' ')
+            .replace(/&nbsp;/gi, ' ');
         return clean
             .split(/\n{2,}/)
             .map(p => p.trim())

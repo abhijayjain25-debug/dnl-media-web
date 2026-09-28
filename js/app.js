@@ -6,7 +6,7 @@
 (function () {
     'use strict';
 
-    const SECTIONS = ['Nation', 'City', 'World', 'Politics', 'Business', 'Sport', 'Culture', 'Opinion'];
+    const SECTIONS = ['Nation', 'City', 'World', 'Politics', 'Business', 'Sport', 'Culture', 'Opinion', 'Interview'];
     const CALIBRATION_COLORS = ['#8f8f8f', '#e5007d', '#00a0e3', '#f6e500', '#111111'];
 
     class DNLApp {
@@ -41,13 +41,21 @@
             this.currentRoute = hash;
 
             if (hash.startsWith('/section/')) {
-                this.currentSection = decodeURIComponent(hash.replace('/section/', ''));
+                const rawSec = decodeURIComponent(hash.replace('/section/', '').replace(/\/+$/, ''));
+                const matchedSec = SECTIONS.find(s => s.toLowerCase() === rawSec.toLowerCase());
+                this.currentSection = matchedSec || rawSec;
             } else {
                 this.currentSection = null;
             }
 
             this.render();
             window.scrollTo({ top: 0, behavior: 'instant' });
+
+            // Ensure active nav link is scrolled into view smoothly on mobile/overflow
+            const activeNav = document.querySelector('.nav-bar .nav-link.active');
+            if (activeNav && typeof activeNav.scrollIntoView === 'function') {
+                activeNav.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+            }
         }
 
         escapeHtml(str) {
@@ -62,7 +70,11 @@
 
         cleanText(str) {
             if (!str) return '';
-            return String(str).replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ');
+            const normalized = String(str)
+                .replace(/[\u200B-\u200D\uFEFF]/g, '')
+                .replace(/\u00a0/g, ' ')
+                .replace(/&nbsp;/gi, ' ');
+            return this.escapeHtml(normalized);
         }
 
         showToast(msg, type = 'success') {
@@ -390,10 +402,10 @@ Besides, he has been editing several other english magazines and periodicals as 
                             <img src="${photoUrl}" alt="${name}" loading="eager" />
                         </div>
                         <div class="editor-desk-info">
-                            <h3 class="editor-desk-name">${name}</h3>
-                            <p class="editor-desk-role">${title} · Delhi News Live</p>
+                            <h3 class="editor-desk-name">${this.cleanText(name)}</h3>
+                            <p class="editor-desk-role">${this.cleanText(title)} · Delhi News Live</p>
                             <div class="editor-desk-bio-body">
-                                ${bioParas.map(p => `<p class="editor-desk-bio-p">${p.trim().replace(/\n/g, '<br>')}</p>`).join('')}
+                                ${bioParas.map(p => `<p class="editor-desk-bio-p">${this.cleanText(p.trim()).replace(/\n/g, '<br>')}</p>`).join('')}
                             </div>
                             <div class="editor-desk-socials">
                                 <a href="${igUrl}" target="_blank" rel="noopener noreferrer" class="editor-social-link editor-social-ig" aria-label="Syed Wajid Instagram Profile">
@@ -854,15 +866,16 @@ Besides, he has been editing several other english magazines and periodicals as 
          * SECTION PAGE — same broadsheet scroll for section-filtered stories
          * ═══════════════════════════════════════════════════════════════ */
         renderSectionPage(section) {
-            const articles = window.DNLDataStore.getArticlesBySection(section);
+            const canonicalSection = SECTIONS.find(s => s.toLowerCase() === (section || '').toLowerCase()) || section;
+            const articles = window.DNLDataStore.getArticlesBySection(canonicalSection);
             const lead = articles.find(a => a.placement === 'lead') || articles[0];
             const others = articles.filter(a => a.id !== lead?.id);
 
             if (articles.length === 0) {
                 return `
                     <div style="padding: 4rem 0; text-align: center;">
-                        <h1 class="page-header-title">${section}</h1>
-                        <p style="margin-top: 1rem; font-style: italic; color: var(--color-stone);">No stories filed under ${section} today.</p>
+                        <h1 class="page-header-title">${canonicalSection}</h1>
+                        <p style="margin-top: 1rem; font-style: italic; color: var(--color-stone);">No stories filed under ${canonicalSection} today.</p>
                         <a href="#/" class="back-link">Return to the Front Page</a>
                     </div>
                 `;
@@ -872,7 +885,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                 <div style="margin-top: 1rem;">
                     <div style="border-bottom: 2px solid var(--color-ink); padding-bottom: 0.5rem; margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: baseline;">
                         <h1 style="font-family: var(--font-poster); font-size: 38px; text-transform: uppercase; line-height: 1;">
-                            ${section}
+                            ${canonicalSection}
                         </h1>
                         <span style="font-family: var(--font-condensed); font-size: 13px; text-transform: uppercase; color: var(--color-stone); letter-spacing: 0.14em;">
                             ${articles.length} Reports
@@ -889,10 +902,10 @@ Besides, he has been editing several other english magazines and periodicals as 
                             ` : ''}
 
                             <h2 class="lead-headline" style="font-size: 42px;">
-                                <a href="#/article/${lead.slug}">${lead.headline}</a>
+                                <a href="#/article/${lead.slug}">${this.cleanText(lead.headline)}</a>
                             </h2>
 
-                            ${lead.standfirst ? `<p class="lead-standfirst" style="font-size: 20px;">${lead.standfirst}</p>` : ''}
+                            ${lead.standfirst ? `<p class="lead-standfirst" style="font-size: 20px;">${this.cleanText(lead.standfirst)}</p>` : ''}
 
                             ${lead.author_name ? `
                                 <div class="byline-bar" style="margin-top: 0.75rem;">
@@ -922,9 +935,9 @@ Besides, he has been editing several other english magazines and periodicals as 
             const blocks = window.DNLDataStore.parseBody(bodyText);
             return blocks.map((b, i) => {
                 if (b.type === 'head') {
-                    return `<h3 class="col-head">${b.text}</h3>`;
+                    return `<h3 class="col-head">${this.cleanText(b.text)}</h3>`;
                 }
-                return `<p class="${i === 0 ? 'dropcap' : ''}" style="${i > 0 ? 'text-indent: 1rem;' : ''}">${b.text}</p>`;
+                return `<p class="${i === 0 ? 'dropcap' : ''}" style="${i > 0 ? 'text-indent: 1rem;' : ''}">${this.cleanText(b.text)}</p>`;
             }).join('');
         }
 
@@ -1085,9 +1098,9 @@ Besides, he has been editing several other english magazines and periodicals as 
             // Body paragraphs helper
             const bodyParagraphsHtml = blocks.map((b, i) => {
                 if (b.type === 'head') {
-                    return `<h3 class="col-head" style="font-size: 20px; margin: 1.5rem 0 0.5rem 0;">${b.text}</h3>`;
+                    return `<h3 class="col-head" style="font-size: 20px; margin: 1.5rem 0 0.5rem 0;">${this.cleanText(b.text)}</h3>`;
                 }
-                return `<p class="${i === 0 ? 'dropcap' : ''}">${b.text}</p>`;
+                return `<p class="${i === 0 ? 'dropcap' : ''}">${this.cleanText(b.text)}</p>`;
             }).join('');
 
             // Related section HTML
@@ -1920,16 +1933,16 @@ Besides, he has been editing several other english magazines and periodicals as 
                     if (resultsContainer) {
                         resultsContainer.innerHTML = `
                             ${query && results.length === 0 ? `
-                                <p style="font-family: var(--font-serifhead); font-style: italic; color: var(--color-stone);">No stories match "${this.searchQuery}".</p>
+                                <p style="font-family: var(--font-serifhead); font-style: italic; color: var(--color-stone);">No stories match "${this.escapeHtml(this.searchQuery)}".</p>
                             ` : ''}
 
                             ${results.map(art => `
                                 <article class="search-item">
-                                    <p class="section-tag">${art.section}</p>
+                                    <p class="section-tag">${this.escapeHtml(art.section)}</p>
                                     <h2>
-                                        <a href="#/article/${art.slug}">${art.headline}</a>
+                                        <a href="#/article/${art.slug}">${this.cleanText(art.headline)}</a>
                                     </h2>
-                                    ${art.standfirst ? `<p>${art.standfirst}</p>` : ''}
+                                    ${art.standfirst ? `<p>${this.cleanText(art.standfirst)}</p>` : ''}
                                 </article>
                             `).join('')}
                         `;

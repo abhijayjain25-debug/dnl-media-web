@@ -495,6 +495,7 @@ button, input, select, textarea {
     padding: 0.25rem 0.35rem;
     border-radius: 0;
     display: inline-block;
+    white-space: nowrap;
 }
 
 .nav-link:hover, .nav-link.active {
@@ -508,14 +509,15 @@ button, input, select, textarea {
         justify-content: flex-start;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
-        padding: 0.4rem 0.25rem;
+        padding: 0.4rem 0.5rem;
+        gap: 0.2rem 0.65rem;
     }
     .nav-bar::-webkit-scrollbar {
         display: none;
     }
     .nav-link {
         flex-shrink: 0;
-        padding: 0.3rem 0.5rem;
+        padding: 0.3rem 0.45rem;
     }
 }
 
@@ -2162,6 +2164,10 @@ button, input, select, textarea {
     font-size: 17px;
     line-height: 1.65;
     color: var(--color-ink);
+    overflow-wrap: break-word;
+    word-break: break-word;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .article-detail-body::after {
