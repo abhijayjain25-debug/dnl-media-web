@@ -16,6 +16,8 @@
             this.currentSection = null;
             this.editingArticle = null;
             this.searchQuery = '';
+            this.saveError = null;
+            this.adminTab = 'stories';
             this.init();
         }
 
@@ -966,12 +968,37 @@ Besides, he has been editing several other english magazines and periodicals as 
          * ARTICLE DETAIL PAGE
          * ═══════════════════════════════════════════════════════════════ */
         renderArticlePage(slug) {
-            const article = window.DNLDataStore.getArticleBySlug(slug);
+            let article = window.DNLDataStore.getArticleBySlug(slug);
 
             if (!article) {
+                if (!this._attemptedSlugs) this._attemptedSlugs = new Set();
+
+                // If story is not in local memory and hasn't been fetched from Supabase yet, attempt async fetch
+                if (window.DNLDataStore && typeof window.DNLDataStore.fetchArticleBySlug === 'function' && !this._attemptedSlugs.has(slug)) {
+                    this._attemptedSlugs.add(slug);
+                    this._fetchingSlug = slug;
+                    window.DNLDataStore.fetchArticleBySlug(slug).then(fetched => {
+                        this._fetchingSlug = null;
+                        this.render();
+                    }).catch(() => {
+                        this._fetchingSlug = null;
+                        this.render();
+                    });
+                }
+
+                if (window.DNLDataStore && (window.DNLDataStore.isSyncing || this._fetchingSlug === slug)) {
+                    return `
+                        <div style="padding: 5rem 0; text-align: center;">
+                            <h1 style="font-family: var(--font-poster); font-size: 28px; text-transform: uppercase; letter-spacing: 0.05em;">Retrieving Dispatch...</h1>
+                            <p style="font-family: var(--font-condensed); font-size: 13px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--color-stone); margin-top: 0.5rem;">Connecting to the newsroom archive...</p>
+                        </div>
+                    `;
+                }
+
                 return `
                     <div style="padding: 5rem 0; text-align: center;">
                         <h1 style="font-family: var(--font-poster); font-size: 36px; text-transform: uppercase;">Story not found</h1>
+                        <p style="font-family: var(--font-serifhead); font-style: italic; color: var(--color-stone); margin: 0.5rem 0 1.5rem 0;">The requested dispatch could not be retrieved from the archives.</p>
                         <a href="#/" class="back-link">Back to the front page</a>
                     </div>
                 `;
@@ -1232,6 +1259,180 @@ Besides, he has been editing several other english magazines and periodicals as 
             `;
         }
 
+        captureActiveFormState() {
+            const form = document.getElementById('storyForm');
+            if (!form) return this.editingArticle;
+
+            const headline = (document.getElementById('storyHeadline')?.value || '').trim();
+            const standfirst = (document.getElementById('storyStandfirst')?.value || '').trim();
+            const section = document.getElementById('storySection')?.value || (this.editingArticle?.section || 'Nation');
+            const placement = document.getElementById('storyPlacement')?.value || (this.editingArticle?.placement || 'col3');
+            const columnPinEl = document.getElementById('storyColumnPin');
+            const column_pin = (placement === 'col3' && columnPinEl) ? columnPinEl.value : (this.editingArticle?.column_pin || 'auto');
+            const author_name = (document.getElementById('storyAuthor')?.value || '').trim() || 'SYED WAJID';
+            let slug = (document.getElementById('storySlug')?.value || '').trim();
+            if (!slug && headline) {
+                slug = window.DNLDataStore.slugify(headline);
+            }
+            const image_url = document.getElementById('storyImage')?.value || this.editingArticle?.image_url || '';
+            const image_caption = (document.getElementById('storyCaption')?.value || '').trim();
+            const selectedLayoutRadio = document.querySelector('input[name="storyImageLayout"]:checked');
+            const image_layout = selectedLayoutRadio ? selectedLayoutRadio.value : (this.editingArticle?.image_layout || 'top');
+
+            let gallery_images = [];
+            try {
+                const rawGallery = document.getElementById('storyGalleryData')?.value;
+                gallery_images = rawGallery ? JSON.parse(rawGallery) : (this.editingArticle?.gallery_images || []);
+            } catch (e) {
+                gallery_images = this.editingArticle?.gallery_images || [];
+            }
+            if (!Array.isArray(gallery_images)) gallery_images = [];
+
+            const is_breaking = document.getElementById('storyIsBreaking') ? document.getElementById('storyIsBreaking').checked : false;
+            const body = document.getElementById('storyBody')?.value || '';
+            const published = document.getElementById('storyPublished') ? document.getElementById('storyPublished').checked : true;
+
+            const id = this.editingArticle?.id || ('art-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5));
+
+            this.editingArticle = {
+                ...(this.editingArticle || {}),
+                id,
+                headline,
+                standfirst,
+                section,
+                placement,
+                column_pin,
+                author_name,
+                slug,
+                image_url,
+                image_caption,
+                image_layout,
+                gallery_images,
+                is_breaking,
+                body,
+                published
+            };
+
+            try {
+                localStorage.setItem('dnl_pending_story_draft', JSON.stringify(this.editingArticle));
+            } catch (e) {
+                console.warn('⚠️ Could not save story draft to localStorage:', e);
+            }
+
+            return this.editingArticle;
+        }
+
+        getSavedDraft() {
+            try {
+                const raw = localStorage.getItem('dnl_pending_story_draft');
+                if (!raw) return null;
+                const parsed = JSON.parse(raw);
+                if (parsed && (parsed.headline || parsed.body || parsed.image_url)) {
+                    return parsed;
+                }
+            } catch (e) {}
+            return null;
+        }
+
+        clearSavedDraft() {
+            try {
+                localStorage.removeItem('dnl_pending_story_draft');
+            } catch (e) {}
+            this.saveError = null;
+        }
+
+        renderSaveErrorBanner(session) {
+            if (!this.saveError) return '';
+            const err = this.saveError;
+            const isSession = err.code === 'SESSION_EXPIRED' ||
+                (err.message && (err.message.toLowerCase().includes('row-level security') ||
+                                 err.message.toLowerCase().includes('policy') ||
+                                 err.message.toLowerCase().includes('session expired') ||
+                                 err.message.toLowerCase().includes('jwt')));
+
+            const userEmail = (session && session.user && session.user.email) || 'editorial@delhinewslive.co.in';
+
+            if (isSession) {
+                return `
+                    <div id="saveErrorBanner" class="cms-error-banner" style="background: #fff1f2; border: 2px solid #e11d48; padding: 1.25rem; margin-bottom: 1.25rem; border-radius: 4px;">
+                        <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                            <span style="font-size: 24px; line-height: 1;">⚠️</span>
+                            <div style="flex: 1;">
+                                <h3 style="font-family: var(--font-poster); font-size: 19px; text-transform: uppercase; color: #9f1239; margin-bottom: 0.25rem;">
+                                    Publishing Blocked: Editorial Login Expired
+                                </h3>
+                                <p style="font-size: 13.5px; color: #4c0519; margin-bottom: 0.75rem; line-height: 1.45;">
+                                    Your Supabase login session expired, preventing this story from being saved to the live server.
+                                    <br><strong>Nothing is lost:</strong> Your entered headlines, standfirst, section, body copy, and uploaded photographs are safely preserved right now.
+                                </p>
+                                <div style="background: white; border: 1px solid #fecdd3; padding: 0.9rem 1rem; border-radius: 4px; max-width: 520px;">
+                                    <span class="field-label" style="font-size: 11px; margin-bottom: 0.4rem; color: #9f1239;">Quick Re-Authentication (${this.escapeHtml(userEmail)})</span>
+                                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                        <input type="password" id="quickAuthPassword" class="input-standard" placeholder="Enter password to re-sign in..." style="flex: 1; min-width: 190px;" autocomplete="current-password" />
+                                        <button type="button" id="btnQuickAuthSubmit" class="btn-primary" style="width: auto; padding: 0.5rem 1.1rem; background: #e11d48; border-color: #be123c;">
+                                            Re-login & Save Story
+                                        </button>
+                                    </div>
+                                    <p id="quickAuthStatus" style="font-size: 12px; margin-top: 0.4rem; display: none;"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            return `
+                <div id="saveErrorBanner" class="cms-error-banner" style="background: #fff7ed; border: 2px solid #ea580c; padding: 1.25rem; margin-bottom: 1.25rem; border-radius: 4px;">
+                    <div style="display: flex; gap: 0.75rem; align-items: flex-start;">
+                        <span style="font-size: 24px; line-height: 1;">⚠️</span>
+                        <div style="flex: 1;">
+                            <h3 style="font-family: var(--font-poster); font-size: 19px; text-transform: uppercase; color: #9a3412; margin-bottom: 0.25rem;">
+                                Story Publishing Failed
+                            </h3>
+                            <p style="font-size: 13.5px; color: #7c2d12; margin-bottom: 0.75rem; line-height: 1.45;">
+                                ${this.escapeHtml(err.message || 'Server save operation failed.')}
+                                <br><strong>Draft preserved:</strong> This story has NOT been published to avoid silent data loss. Your text and photos remain in the editor below.
+                            </p>
+                            <button type="button" id="btnRetryPublish" class="btn-primary" style="width: auto; padding: 0.5rem 1.25rem;">
+                                🔄 Retry Publishing Story
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        renderPendingDraftNotice() {
+            const draft = this.getSavedDraft();
+            if (!draft || this.editingArticle) return '';
+
+            return `
+                <div class="cms-card" style="background: #f0fdf4; border: 1.5px solid #16a34a; padding: 1rem 1.25rem; margin-bottom: 1.25rem; border-radius: 4px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem;">
+                        <div>
+                            <span style="font-family: var(--font-condensed); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: #15803d;">
+                                📝 Recoverable Draft Found
+                            </span>
+                            <h4 style="font-family: var(--font-serifhead); font-weight: 700; font-size: 16px; margin: 0.2rem 0; color: #14532d;">
+                                ${this.escapeHtml(draft.headline || 'Untitled Draft Story')}
+                            </h4>
+                            <p style="font-size: 12px; color: #166534; margin: 0;">
+                                Section: <strong>${draft.section || 'Nation'}</strong> · Placement: <strong>${draft.placement || 'col3'}</strong> · Preserved in browser storage
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button type="button" id="btnRestoreDraft" class="btn-primary" style="width: auto; padding: 0.45rem 1rem; font-size: 12px; background: #16a34a; border-color: #15803d;">
+                                ✏️ Resume Editing Draft
+                            </button>
+                            <button type="button" id="btnDiscardDraft" class="btn-secondary" style="width: auto; padding: 0.45rem 0.9rem; font-size: 12px;">
+                                Discard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
         /* ═══════════════════════════════════════════════════════════════
          * ADMIN / NEWSROOM DESK
          * ═══════════════════════════════════════════════════════════════ */
@@ -1272,6 +1473,9 @@ Besides, he has been editing several other english magazines and periodicals as 
 
                 <!-- ── STORIES TAB ── -->
                 <div id="admin-panel-stories" style="${adminTab === 'stories' ? '' : 'display:none;'}">
+
+                ${this.renderSaveErrorBanner(session)}
+                ${this.renderPendingDraftNotice()}
 
                 <!-- Article Editor Form -->
                 ${editing ? `
@@ -2129,11 +2333,15 @@ Besides, he has been editing several other english magazines and periodicals as 
             const btnNewStory = document.getElementById('btnNewStory');
             if (btnNewStory) {
                 btnNewStory.addEventListener('click', () => {
+                    this.saveError = null;
+                    const defaultSection = (this.currentSection && SECTIONS.includes(this.currentSection)) ? this.currentSection : 'Nation';
                     this.editingArticle = {
+                        id: 'art-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
                         headline: '',
                         standfirst: '',
-                        section: 'Nation',
+                        section: defaultSection,
                         placement: 'col3',
+                        column_pin: 'auto',
                         author_name: 'SYED WAJID',
                         slug: '',
                         image_url: '',
@@ -2155,8 +2363,39 @@ Besides, he has been editing several other english magazines and periodicals as 
             const btnCancelStory = document.getElementById('btnCancelStory');
             if (btnCancelStory) {
                 btnCancelStory.addEventListener('click', () => {
+                    const headline = document.getElementById('storyHeadline')?.value || '';
+                    const body = document.getElementById('storyBody')?.value || '';
+                    if ((headline || body) && !confirm('Close story editor? Any unsaved edits will be discarded.')) {
+                        return;
+                    }
+                    this.clearSavedDraft();
                     this.editingArticle = null;
                     this.render();
+                });
+            }
+
+            // Restore / Discard Draft Buttons
+            const btnRestoreDraft = document.getElementById('btnRestoreDraft');
+            if (btnRestoreDraft) {
+                btnRestoreDraft.addEventListener('click', () => {
+                    const draft = this.getSavedDraft();
+                    if (draft) {
+                        this.editingArticle = draft;
+                        this.saveError = null;
+                        this.render();
+                        const editor = document.getElementById('articleEditorCard');
+                        if (editor) editor.scrollIntoView({ behavior: 'smooth' });
+                    }
+                });
+            }
+
+            const btnDiscardDraft = document.getElementById('btnDiscardDraft');
+            if (btnDiscardDraft) {
+                btnDiscardDraft.addEventListener('click', () => {
+                    if (confirm('Are you sure you want to discard this unsaved story draft?')) {
+                        this.clearSavedDraft();
+                        this.render();
+                    }
                 });
             }
 
@@ -2177,6 +2416,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                     if (this.editingArticle) {
                         this.editingArticle.image_url = '';
                     }
+                    this.captureActiveFormState();
                 });
             }
 
@@ -2197,16 +2437,38 @@ Besides, he has been editing several other english magazines and periodicals as 
                         const preview = document.getElementById('imagePreview');
                         const previewContainer = document.getElementById('imagePreviewContainer');
                         const urlInput = document.getElementById('storyImage');
+                        const prevUrl = urlInput ? urlInput.value : '';
                         if (urlInput) urlInput.value = 'Uploading to Supabase Storage...';
 
-                        const uploadedUrl = await window.DNLDataStore.uploadMediaFile(file, 'articles');
-                        if (urlInput) urlInput.value = uploadedUrl;
-                        if (preview && previewContainer) {
-                            preview.src = uploadedUrl;
-                            previewContainer.style.display = 'block';
-                        }
-                        if (this.editingArticle) {
-                            this.editingArticle.image_url = uploadedUrl;
+                        try {
+                            const uploadedUrl = await window.DNLDataStore.uploadMediaFile(file, 'articles');
+                            if (urlInput) urlInput.value = uploadedUrl;
+                            if (preview && previewContainer) {
+                                preview.src = uploadedUrl;
+                                previewContainer.style.display = 'block';
+                            }
+                            if (this.editingArticle) {
+                                this.editingArticle.image_url = uploadedUrl;
+                            }
+                            this.captureActiveFormState();
+                        } catch (err) {
+                            console.error('❌ Main image upload error:', err);
+                            if (urlInput) urlInput.value = prevUrl;
+                            storyImageFile.value = '';
+                            if (err.code === 'SESSION_EXPIRED' || (err.message && err.message.toLowerCase().includes('session expired'))) {
+                                this.saveError = {
+                                    message: 'Photo upload failed: editorial login session expired.',
+                                    code: 'SESSION_EXPIRED',
+                                    timestamp: Date.now()
+                                };
+                                this.captureActiveFormState();
+                                this.render();
+                                const banner = document.getElementById('saveErrorBanner') || document.getElementById('articleEditorCard');
+                                if (banner) banner.scrollIntoView({ behavior: 'smooth' });
+                                this.showToast('Login session expired. Please re-authenticate.', 'error');
+                            } else {
+                                alert('Photo upload failed: ' + (err.message || err));
+                            }
                         }
                     }
                 });
@@ -2236,6 +2498,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                         if (this.editingArticle) {
                             this.editingArticle.gallery_images = currentGallery;
                         }
+                        this.captureActiveFormState();
                         if (countBadge) countBadge.innerText = `${currentGallery.length} photos attached`;
                         if (container) {
                             container.innerHTML = currentGallery.map((imgUrl, index) => `
@@ -2288,6 +2551,17 @@ Besides, he has been editing several other english magazines and periodicals as 
                             }
                         } catch (upErr) {
                             console.warn('Gallery upload error for file:', file.name, upErr);
+                            if (upErr.code === 'SESSION_EXPIRED') {
+                                this.saveError = {
+                                    message: 'Gallery upload failed: editorial login session expired.',
+                                    code: 'SESSION_EXPIRED',
+                                    timestamp: Date.now()
+                                };
+                                this.captureActiveFormState();
+                                this.render();
+                                this.showToast('Login session expired. Please re-authenticate.', 'error');
+                                break;
+                            }
                         }
                     }
 
@@ -2303,6 +2577,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                     if (this.editingArticle) {
                         this.editingArticle.gallery_images = currentGallery;
                     }
+                    this.captureActiveFormState();
                     if (countBadge) countBadge.innerText = `${currentGallery.length} photos attached`;
                     if (container) {
                         container.innerHTML = currentGallery.map((imgUrl, index) => `
@@ -2334,8 +2609,12 @@ Besides, he has been editing several other english magazines and periodicals as 
                             mastheadFile.value = '';
                             return;
                         }
-                        const uploadedUrl = await window.DNLDataStore.uploadMediaFile(file, 'branding');
-                        document.getElementById('setting_masthead_url').value = uploadedUrl;
+                        try {
+                            const uploadedUrl = await window.DNLDataStore.uploadMediaFile(file, 'branding');
+                            document.getElementById('setting_masthead_url').value = uploadedUrl;
+                        } catch (logoErr) {
+                            alert('Logo upload failed: ' + (logoErr.message || logoErr));
+                        }
                     }
                 });
             }
@@ -2345,13 +2624,86 @@ Besides, he has been editing several other english magazines and periodicals as 
             const storySlugInput = document.getElementById('storySlug');
             if (storyHeadlineInput && storySlugInput) {
                 storyHeadlineInput.addEventListener('input', (e) => {
-                    if (!this.editingArticle || !this.editingArticle.id) {
+                    if (!storySlugInput.dataset.manualEdited) {
                         storySlugInput.value = window.DNLDataStore.slugify(e.target.value);
+                    }
+                });
+                storySlugInput.addEventListener('input', () => {
+                    storySlugInput.dataset.manualEdited = 'true';
+                });
+            }
+
+            // Quick Re-Authentication inside Save Error Banner
+            const btnQuickAuth = document.getElementById('btnQuickAuthSubmit');
+            if (btnQuickAuth) {
+                btnQuickAuth.addEventListener('click', async () => {
+                    const passInput = document.getElementById('quickAuthPassword');
+                    const statusEl = document.getElementById('quickAuthStatus');
+                    const pass = passInput ? passInput.value.trim() : '';
+
+                    if (!pass) {
+                        if (statusEl) {
+                            statusEl.innerText = 'Please enter your password.';
+                            statusEl.style.display = 'block';
+                            statusEl.style.color = '#e11d48';
+                        }
+                        if (passInput) passInput.focus();
+                        return;
+                    }
+
+                    const session = window.DNLDataStore.getAuthSession();
+                    const email = (session && session.user && session.user.email) || 'editorial@delhinewslive.co.in';
+
+                    btnQuickAuth.innerText = 'Authenticating...';
+                    btnQuickAuth.disabled = true;
+                    if (statusEl) {
+                        statusEl.innerText = 'Verifying credentials with Supabase...';
+                        statusEl.style.display = 'block';
+                        statusEl.style.color = '#4c0519';
+                    }
+
+                    try {
+                        await window.DNLDataStore.login(email, pass);
+                        if (statusEl) {
+                            statusEl.innerText = '✓ Authenticated! Retrying story save...';
+                            statusEl.style.color = '#15803d';
+                        }
+
+                        // Capture active form inputs
+                        const toSave = this.captureActiveFormState();
+                        await window.DNLDataStore.saveArticle(toSave);
+
+                        this.clearSavedDraft();
+                        this.editingArticle = null;
+                        this.saveError = null;
+                        this.render();
+                        this.showToast(`✓ Session renewed and story "${toSave.headline}" successfully published!`);
+                    } catch (err) {
+                        console.error('❌ Quick auth failed:', err);
+                        btnQuickAuth.innerText = 'Re-login & Save Story';
+                        btnQuickAuth.disabled = false;
+                        if (statusEl) {
+                            statusEl.innerText = '❌ Re-authentication failed: ' + (err.message || err);
+                            statusEl.style.display = 'block';
+                            statusEl.style.color = '#e11d48';
+                        }
                     }
                 });
             }
 
-            // Save Story
+            // Retry Publish Button inside Error Banner
+            const btnRetryPublish = document.getElementById('btnRetryPublish');
+            if (btnRetryPublish) {
+                btnRetryPublish.addEventListener('click', () => {
+                    const form = document.getElementById('storyForm');
+                    if (form) {
+                        const submitBtn = form.querySelector('button[type="submit"]');
+                        if (submitBtn) submitBtn.click();
+                    }
+                });
+            }
+
+            // Save Story Form Submission
             const storyForm = document.getElementById('storyForm');
             if (storyForm) {
                 storyForm.addEventListener('submit', async (e) => {
@@ -2371,54 +2723,48 @@ Besides, he has been editing several other english magazines and periodicals as 
                         return;
                     }
 
+                    // Capture all entered form fields into this.editingArticle and draft storage
+                    const updated = this.captureActiveFormState();
+
+                    if (!updated.headline || !updated.headline.trim()) {
+                        alert('Please enter a headline for the story.');
+                        return;
+                    }
+
                     if (submitBtn) {
                         submitBtn.innerText = 'Publishing story...';
                         submitBtn.disabled = true;
                     }
 
-                    const selectedLayoutRadio = document.querySelector('input[name="storyImageLayout"]:checked');
-                    const selectedLayout = selectedLayoutRadio ? selectedLayoutRadio.value : 'top';
-
-                    const selectedPlacement = document.getElementById('storyPlacement').value;
-                    const columnPinEl = document.getElementById('storyColumnPin');
-                    const selectedColumnPin = (selectedPlacement === 'col3' && columnPinEl) ? columnPinEl.value : 'auto';
-
-                    let galleryImages = [];
-                    try {
-                        const rawGallery = document.getElementById('storyGalleryData')?.value;
-                        galleryImages = rawGallery ? JSON.parse(rawGallery) : [];
-                    } catch (e) {
-                        galleryImages = [];
-                    }
-                    if (!Array.isArray(galleryImages)) galleryImages = [];
-
-                    const updated = {
-                        ...this.editingArticle,
-                        headline: document.getElementById('storyHeadline').value,
-                        standfirst: document.getElementById('storyStandfirst').value,
-                        section: document.getElementById('storySection').value,
-                        placement: selectedPlacement,
-                        column_pin: selectedColumnPin,
-                        author_name: document.getElementById('storyAuthor').value || 'SYED WAJID',
-                        slug: document.getElementById('storySlug').value || window.DNLDataStore.slugify(document.getElementById('storyHeadline').value),
-                        image_url: imgUrl,
-                        image_caption: document.getElementById('storyCaption').value,
-                        image_layout: selectedLayout,
-                        gallery_images: galleryImages,
-                        is_breaking: document.getElementById('storyIsBreaking') ? document.getElementById('storyIsBreaking').checked : false,
-                        body: document.getElementById('storyBody').value,
-                        published: document.getElementById('storyPublished').checked
-                    };
-
                     try {
                         await window.DNLDataStore.saveArticle(updated);
+                        this.clearSavedDraft();
                         this.editingArticle = null;
+                        this.saveError = null;
                         this.render();
                         this.showToast(`✓ Story "${updated.headline}" saved and published!`);
                     } catch (saveErr) {
+                        console.error('❌ Story publish error:', saveErr);
                         const errMsg = saveErr.message || String(saveErr);
-                        if (errMsg.toLowerCase().includes('row-level security') || errMsg.toLowerCase().includes('policy')) {
-                            this.showToast('Login session expired. Please sign out and log in again.', 'error');
+                        const isExpired = saveErr.code === 'SESSION_EXPIRED' ||
+                            errMsg.toLowerCase().includes('row-level security') ||
+                            errMsg.toLowerCase().includes('policy') ||
+                            errMsg.toLowerCase().includes('session expired');
+
+                        this.saveError = {
+                            message: errMsg,
+                            code: isExpired ? 'SESSION_EXPIRED' : 'SAVE_FAILED',
+                            timestamp: Date.now()
+                        };
+
+                        // Re-render admin view so the prominent error banner and quick re-login form are displayed
+                        this.render();
+
+                        const banner = document.getElementById('saveErrorBanner') || document.getElementById('articleEditorCard');
+                        if (banner) banner.scrollIntoView({ behavior: 'smooth' });
+
+                        if (isExpired) {
+                            this.showToast('Login session expired. Please re-authenticate above.', 'error');
                         } else {
                             this.showToast('Could not save story: ' + errMsg, 'error');
                         }
@@ -2440,19 +2786,14 @@ Besides, he has been editing several other english magazines and periodicals as 
                         if (confirm(`Make "${art.headline}" the Front Page Lead Banner?\n(The previous lead story will be automatically moved to the standard newspaper scroll)`)) {
                             btn.innerText = 'Updating...';
                             btn.disabled = true;
-                            let supabaseWarn = null;
                             try {
                                 await window.DNLDataStore.saveArticle({ ...art, placement: 'lead' });
+                                this.render();
+                                this.showToast(`✓ "${art.headline}" is now the Front Page Lead Banner!`);
                             } catch (err) {
-                                // saveArticle already wrote to localStorage before throwing.
-                                // Log the Supabase error but do not abort — show the updated list.
-                                supabaseWarn = err.message || String(err);
-                                console.warn('⚠️ Make Lead: Supabase sync warning (local save succeeded):', supabaseWarn);
-                            }
-                            // Always re-render so admin sees the correct state
-                            this.render();
-                            if (supabaseWarn) {
-                                console.warn('Make Lead set locally. Supabase sync note:', supabaseWarn);
+                                console.error('❌ Make Lead failed:', err);
+                                this.render();
+                                this.showToast('Could not update lead story: ' + (err.message || err), 'error');
                             }
                         }
                     }

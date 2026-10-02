@@ -473,9 +473,52 @@ class DataStore {
         }
 
         console.log('⚡ Initializing Supabase backend connection...');
-        await this.syncFromSupabase();
-        this.initRealtime();
+        // 1. Immediately wire auth state listener and realtime before anything else
         this.initAuthListener();
+        this.initRealtime();
+
+        // 2. Verify current session with Supabase to avoid stale phantom logins
+        await this.checkInitialAuthSession();
+
+        // 3. Sync data from Supabase
+        await this.syncFromSupabase();
+    }
+
+    async checkInitialAuthSession() {
+        if (!this.supabase || !this.supabase.auth) return;
+        try {
+            const { data } = await this.supabase.auth.getSession();
+            if (data && data.session && data.session.user) {
+                const localSession = {
+                    user: data.session.user,
+                    token: data.session.access_token,
+                    logged_in_at: new Date().toISOString()
+                };
+                localStorage.setItem(this.STORAGE_KEY_AUTH, JSON.stringify(localSession));
+            } else {
+                // If local storage had an old auth session but Supabase has no active session, attempt refresh
+                const hadLocalAuth = !!localStorage.getItem(this.STORAGE_KEY_AUTH);
+                if (hadLocalAuth) {
+                    try {
+                        const refreshRes = await this.supabase.auth.refreshSession();
+                        if (refreshRes && refreshRes.data && refreshRes.data.session) {
+                            const localSession = {
+                                user: refreshRes.data.session.user,
+                                token: refreshRes.data.session.access_token,
+                                logged_in_at: new Date().toISOString()
+                            };
+                            localStorage.setItem(this.STORAGE_KEY_AUTH, JSON.stringify(localSession));
+                            return;
+                        }
+                    } catch (e) {}
+                    // Session is truly expired/invalid -> clear stale local auth so UI doesn't pretend logged in
+                    console.warn('⚠️ Expired newsroom session detected on startup. Clearing stale local auth.');
+                    localStorage.removeItem(this.STORAGE_KEY_AUTH);
+                }
+            }
+        } catch (err) {
+            console.warn('⚠️ Session verification note:', err);
+        }
     }
 
     /**
@@ -662,9 +705,18 @@ class DataStore {
 
             console.log('✅ Supabase data synchronization complete.');
 
-            // Trigger UI update if app is ready
+            // Trigger UI update if app is ready and user is not actively typing in admin
             if (window.dnlApp && typeof window.dnlApp.render === 'function') {
-                window.dnlApp.render();
+                const isEditingStory = window.dnlApp.currentRoute === '/admin' && (
+                    window.dnlApp.editingArticle || 
+                    document.getElementById('storyForm') || 
+                    (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA'))
+                );
+                if (!isEditingStory) {
+                    window.dnlApp.render();
+                } else {
+                    console.log('ℹ️ Editor active in admin desk; deferred UI re-render to protect user inputs.');
+                }
             }
         } catch (err) {
             console.error('❌ Error during Supabase synchronization:', err);
@@ -851,8 +903,105 @@ class DataStore {
         return this.getArticles().filter(a => a.published !== false);
     }
 
+    getArticleById(id) {
+        if (!id) return null;
+        return this.getArticles().find(a => a.id === id) || null;
+    }
+
     getArticleBySlug(slug) {
-        return this.getArticles().find(a => a.slug === slug) || null;
+        if (!slug) return null;
+        const raw = String(slug).trim();
+        let decoded = raw;
+        try {
+            decoded = decodeURIComponent(raw).trim();
+        } catch (e) {}
+        const decodedLower = decoded.toLowerCase();
+        const cleanReq = decodedLower.replace(/^-+|-+$/g, '');
+        if (!cleanReq) return null;
+        const articles = this.getArticles();
+
+        // 1. Exact match (case-sensitive or lowercased)
+        let match = articles.find(a => a.slug === raw || a.slug === decoded || (a.slug && a.slug.toLowerCase() === decodedLower));
+        if (match) return match;
+
+        // 2. Trailing/leading hyphen fallback: ACCEPT ONLY WHEN EXACTLY ONE CANDIDATE MATCHES
+        const hyphenCandidates = articles.filter(a => {
+            const aClean = (a.slug || '').toLowerCase().replace(/^-+|-+$/g, '');
+            return aClean === cleanReq;
+        });
+
+        if (hyphenCandidates.length === 1) {
+            return hyphenCandidates[0];
+        }
+        // If multiple candidates match (hyphenCandidates.length > 1), do NOT arbitrarily select one.
+
+        // 3. Fallback: match by slugified headline: ACCEPT ONLY WHEN EXACTLY ONE CANDIDATE MATCHES
+        const headlineCandidates = articles.filter(a => this.slugify(a.headline || '') === cleanReq);
+        if (headlineCandidates.length === 1) {
+            return headlineCandidates[0];
+        }
+
+        return null;
+    }
+
+    /**
+     * Fallback lookup directly against Supabase for direct shared links
+     * that may not have completed synchronization into localStorage yet.
+     */
+    async fetchArticleBySlug(slug) {
+        if (!slug) return null;
+        let article = this.getArticleBySlug(slug);
+        if (article) return article;
+
+        if (this.supabase) {
+            try {
+                const raw = String(slug).trim();
+                let decoded = raw;
+                try {
+                    decoded = decodeURIComponent(raw).trim();
+                } catch (e) {}
+                const decodedLower = decoded.toLowerCase();
+                const cleanReq = decodedLower.replace(/^-+|-+$/g, '');
+
+                const { data, error } = await this.supabase
+                    .from('articles')
+                    .select('*')
+                    .or(`slug.eq.${slug},slug.eq.${cleanReq},slug.eq.${cleanReq}-`)
+                    .limit(5);
+
+                if (!error && data && data.length > 0) {
+                    const articles = this.getArticles();
+                    data.forEach(dbArt => {
+                        const formatted = {
+                            ...dbArt,
+                            headline: (dbArt.headline || '').trim(),
+                            standfirst: (dbArt.standfirst || '').trim(),
+                            body: dbArt.body || '',
+                            author_name: dbArt.author_name || 'SYED WAJID',
+                            image_caption: dbArt.image_caption || '',
+                            image_layout: dbArt.image_layout || 'top',
+                            is_breaking: !!dbArt.is_breaking,
+                            published: typeof dbArt.published === 'boolean' ? dbArt.published : true,
+                            views: parseInt(dbArt.views, 10) || 0,
+                            gallery_images: Array.isArray(dbArt.gallery_images) ? dbArt.gallery_images : []
+                        };
+                        const idx = articles.findIndex(a => a.id === formatted.id);
+                        if (idx !== -1) {
+                            articles[idx] = formatted;
+                        } else {
+                            articles.push(formatted);
+                        }
+                    });
+                    try {
+                        localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+                    } catch (e) {}
+                    return this.getArticleBySlug(slug);
+                }
+            } catch (err) {
+                console.warn('⚠️ Supabase direct article lookup note:', err);
+            }
+        }
+        return null;
     }
 
     getArticlesBySection(section) {
@@ -919,17 +1068,37 @@ class DataStore {
     }
 
     async saveArticle(article) {
+        if (!article) throw new Error('No article data provided to save.');
+
+        // 1. Verify active auth session with Supabase if connected
+        if (this.supabase) {
+            await this.ensureValidAuthSession();
+        }
+
         const articles = this.getArticles();
         let slug = article.slug ? this.slugify(article.slug) : this.slugify(article.headline);
-        // Ensure slug does not collide with another existing article with a different id
-        if (articles.some(a => a.slug === slug && a.id !== article.id)) {
-            slug = `${slug}-${Math.random().toString(36).substr(2, 4)}`;
+        const cleanSlug = slug.replace(/^-+|-+$/g, '');
+
+        // Retain or assign stable client ID so retries preserve the same article identity
+        const articleId = article.id || ('art-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5));
+
+        // Check for collision ONLY against a different article (different id)
+        const collision = articles.find(a => {
+            if (a.id === articleId) return false;
+            const aSlug = (a.slug || '').toLowerCase().replace(/^-+|-+$/g, '');
+            return aSlug === cleanSlug.toLowerCase();
+        });
+        if (collision) {
+            slug = this.slugify(`${cleanSlug.slice(0, 70)}-${Math.random().toString(36).substr(2, 4)}`);
+        } else {
+            slug = cleanSlug;
         }
 
         const normalizedPlacement = (article.placement || 'col3').toString().trim().toLowerCase();
 
         const toSave = {
             ...article,
+            id: articleId,
             headline: (article.headline || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim(),
             standfirst: (article.standfirst || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim(),
             body: (article.body || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' '),
@@ -945,66 +1114,26 @@ class DataStore {
             updated_at: new Date().toISOString()
         };
 
-        if (toSave.id) {
-            const index = articles.findIndex(a => a.id === toSave.id);
-            if (index !== -1) {
-                // If sort_order is not provided on edit, preserve existing article's sort_order
-                if (typeof toSave.sort_order !== 'number' || isNaN(toSave.sort_order)) {
-                    toSave.sort_order = (typeof articles[index].sort_order === 'number' && !isNaN(articles[index].sort_order)) ? articles[index].sort_order : 0;
-                }
-                // If an existing draft is being published for the first time, place it at the top
-                if (!articles[index].published && toSave.published) {
-                    const orders = articles.map(a => (typeof a.sort_order === 'number' && !isNaN(a.sort_order)) ? a.sort_order : 0);
-                    const minOrder = orders.length > 0 ? Math.min(...orders) : 0;
-                    toSave.sort_order = minOrder - 10;
-                    toSave.published_at = new Date().toISOString();
-                }
-                articles[index] = toSave;
-            } else {
-                articles.push(toSave);
+        const existingIndex = articles.findIndex(a => a.id === toSave.id);
+        if (existingIndex !== -1) {
+            if (typeof toSave.sort_order !== 'number' || isNaN(toSave.sort_order)) {
+                toSave.sort_order = (typeof articles[existingIndex].sort_order === 'number' && !isNaN(articles[existingIndex].sort_order)) ? articles[existingIndex].sort_order : 0;
+            }
+            if (!articles[existingIndex].published && toSave.published) {
+                const orders = articles.map(a => (typeof a.sort_order === 'number' && !isNaN(a.sort_order)) ? a.sort_order : 0);
+                const minOrder = orders.length > 0 ? Math.min(...orders) : 0;
+                toSave.sort_order = minOrder - 10;
+                toSave.published_at = new Date().toISOString();
             }
         } else {
-            toSave.id = 'art-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
-            toSave.created_at = new Date().toISOString();
-            toSave.published_at = toSave.published ? new Date().toISOString() : null;
-            // Brand new stories get a lower sort_order than any existing story so they sort to the very top
+            toSave.created_at = article.created_at || new Date().toISOString();
+            toSave.published_at = toSave.published ? (article.published_at || new Date().toISOString()) : null;
             const orders = articles.map(a => (typeof a.sort_order === 'number' && !isNaN(a.sort_order)) ? a.sort_order : 0);
             const minOrder = orders.length > 0 ? Math.min(...orders) : 0;
             toSave.sort_order = minOrder - 10;
-            articles.push(toSave);
         }
 
-        // If this article is marked as breaking, unset others
-        if (toSave.is_breaking) {
-            articles.forEach(a => {
-                if (a.id !== toSave.id) a.is_breaking = false;
-            });
-        }
-
-        // If this article is marked as Lead Banner, demote any other lead to col3
-        if (toSave.placement === 'lead') {
-            articles.forEach(a => {
-                if (a.id !== toSave.id && (a.placement || '').toString().trim().toLowerCase() === 'lead') {
-                    a.placement = 'col3';
-                }
-            });
-        }
-
-        // Always keep articles sorted ascending by sort_order (lowest = newest / top of page)
-        articles.sort((a, b) => {
-            const orderA = (typeof a.sort_order === 'number' && !isNaN(a.sort_order)) ? a.sort_order : 0;
-            const orderB = (typeof b.sort_order === 'number' && !isNaN(b.sort_order)) ? b.sort_order : 0;
-            return orderA - orderB;
-        });
-
-        // 1. Optimistically update local storage safely
-        try {
-            localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
-        } catch (storageErr) {
-            console.warn('⚠️ LocalStorage storage note in saveArticle:', storageErr);
-        }
-
-        // 2. Persist to Supabase
+        // 2. PERSIST TO SERVER FIRST — DO NOT update local storage before write confirmation
         if (this.supabase) {
             try {
                 let dbArticle = {
@@ -1026,7 +1155,6 @@ class DataStore {
                     updated_at: new Date().toISOString()
                 };
 
-                // Attempt native columns if schema supports them or not yet known
                 if (this.schemaHasLayoutColumns !== false) {
                     dbArticle.image_layout = toSave.image_layout || 'top';
                     dbArticle.is_breaking = !!toSave.is_breaking;
@@ -1037,7 +1165,7 @@ class DataStore {
                     .from('articles')
                     .upsert(dbArticle, { onConflict: 'id' });
 
-                // If native columns do not exist in Supabase, retry without them
+                // Schema fallback for legacy databases missing new columns
                 if (error && (error.message.includes('gallery_images') || error.message.includes('image_layout') || error.message.includes('column_pin') || error.code === '42703')) {
                     console.warn('ℹ️ Native column note detected in Supabase, saving with metadata safety net...');
                     this.schemaHasLayoutColumns = false;
@@ -1069,9 +1197,12 @@ class DataStore {
 
                 if (error) {
                     console.error('❌ Supabase article save error:', error.message);
+                    if (error.code === '42501' || error.message.includes('row-level security') || error.message.includes('policy')) {
+                        const rlsErr = new Error('Publishing failed: Editorial login session expired. Please sign in again.');
+                        rlsErr.code = 'SESSION_EXPIRED';
+                        throw rlsErr;
+                    }
                     throw new Error('Supabase save failed: ' + error.message);
-                } else {
-                    console.log('✅ Article successfully saved to Supabase:', toSave.headline);
                 }
 
                 // If this is lead banner, demote any other lead in Supabase
@@ -1095,6 +1226,44 @@ class DataStore {
             }
         }
 
+        // 3. SERVER CONFIRMED: Now update in-memory and local cache
+        const currentArticles = this.getArticles();
+        const targetIdx = currentArticles.findIndex(a => a.id === toSave.id);
+        if (targetIdx !== -1) {
+            currentArticles[targetIdx] = toSave;
+        } else {
+            currentArticles.push(toSave);
+        }
+
+        if (toSave.is_breaking) {
+            currentArticles.forEach(a => {
+                if (a.id !== toSave.id) a.is_breaking = false;
+            });
+        }
+
+        if (toSave.placement === 'lead') {
+            currentArticles.forEach(a => {
+                if (a.id !== toSave.id && (a.placement || '').toString().trim().toLowerCase() === 'lead') {
+                    a.placement = 'col3';
+                }
+            });
+        }
+
+        currentArticles.sort((a, b) => {
+            const orderA = (typeof a.sort_order === 'number' && !isNaN(a.sort_order)) ? a.sort_order : 0;
+            const orderB = (typeof b.sort_order === 'number' && !isNaN(b.sort_order)) ? b.sort_order : 0;
+            return orderA - orderB;
+        });
+
+        try {
+            localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(currentArticles));
+            // Successfully saved to server: remove emergency draft backup
+            localStorage.removeItem('dnl_pending_story_draft');
+        } catch (storageErr) {
+            console.warn('⚠️ LocalStorage storage note in saveArticle:', storageErr);
+        }
+
+        console.log('✅ Article successfully confirmed and published to Supabase:', toSave.headline);
         return toSave;
     }
 
@@ -1181,10 +1350,10 @@ class DataStore {
         if (!text) return 'story-' + Date.now();
         return text
             .toLowerCase()
-            .replace(/['']/g, '')
+            .replace(/['’‘"“”]/g, '')
             .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .slice(0, 80);
+            .slice(0, 80)
+            .replace(/^-+|-+$/g, '');
     }
 
     parseBody(bodyText) {
@@ -1213,6 +1382,59 @@ class DataStore {
             return JSON.parse(localStorage.getItem(this.STORAGE_KEY_AUTH)) || null;
         } catch (e) {
             return null;
+        }
+    }
+
+    /**
+     * Actively verify that the Supabase session is alive before database writes.
+     * Attempts token refresh if needed. Throws SESSION_EXPIRED error if invalid.
+     */
+    async ensureValidAuthSession() {
+        if (!this.supabase || !this.supabase.auth) {
+            return this.getAuthSession();
+        }
+
+        try {
+            const { data, error } = await this.supabase.auth.getSession();
+            let session = data && data.session;
+
+            // If session is expired or missing, attempt refresh using refresh token
+            if (!session) {
+                try {
+                    const refreshRes = await this.supabase.auth.refreshSession();
+                    if (refreshRes && refreshRes.data && refreshRes.data.session) {
+                        session = refreshRes.data.session;
+                    }
+                } catch (refErr) {
+                    console.warn('⚠️ Supabase token refresh error:', refErr);
+                }
+            }
+
+            if (session && session.user) {
+                const localSession = {
+                    user: session.user,
+                    token: session.access_token,
+                    logged_in_at: new Date().toISOString()
+                };
+                localStorage.setItem(this.STORAGE_KEY_AUTH, JSON.stringify(localSession));
+                return localSession;
+            } else {
+                localStorage.removeItem(this.STORAGE_KEY_AUTH);
+                const authErr = new Error('Editorial login session expired. Please sign in again to publish.');
+                authErr.code = 'SESSION_EXPIRED';
+                throw authErr;
+            }
+        } catch (err) {
+            if (err.code === 'SESSION_EXPIRED' || (err.message && err.message.includes('session expired'))) {
+                throw err;
+            }
+            const local = this.getAuthSession();
+            if (!local) {
+                const errNotAuth = new Error('You must be signed in to publish stories.');
+                errNotAuth.code = 'SESSION_EXPIRED';
+                throw errNotAuth;
+            }
+            return local;
         }
     }
 
@@ -1536,6 +1758,9 @@ class DataStore {
         if (!file) return '';
 
         if (this.supabase && this.supabase.storage) {
+            // Check session validity before attempting storage upload
+            await this.ensureValidAuthSession();
+
             try {
                 const cleanName = (file.name || 'file').replace(/[^a-zA-Z0-9.-]/g, '_');
                 const filePath = `${folder}/${Date.now()}_${Math.random().toString(36).substr(2, 6)}_${cleanName}`;
@@ -1557,14 +1782,21 @@ class DataStore {
                         return pubData.publicUrl;
                     }
                 } else if (error) {
-                    console.warn('⚠️ Supabase Storage upload note (falling back to compressed storage):', error.message);
+                    console.error('❌ Supabase Storage upload error:', error.message);
+                    if (error.statusCode === '403' || error.message.includes('row-level security') || error.message.includes('policy')) {
+                        const rlsErr = new Error('Photo upload failed: editorial login session expired. Please sign in again.');
+                        rlsErr.code = 'SESSION_EXPIRED';
+                        throw rlsErr;
+                    }
+                    throw new Error('Supabase Storage upload failed: ' + error.message);
                 }
             } catch (err) {
-                console.warn('⚠️ Supabase Storage exception:', err);
+                console.error('❌ Supabase Storage exception:', err);
+                throw err;
             }
         }
 
-        // For photos/images, compress before returning data URL to guarantee it never exceeds localStorage quota
+        // Offline mode fallback only (when Supabase is unconfigured)
         if (file.type && file.type.startsWith('image/')) {
             const compressed = await this.compressImageFile(file);
             if (compressed) return compressed;
