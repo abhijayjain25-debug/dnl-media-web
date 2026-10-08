@@ -1123,6 +1123,51 @@ button, input, select, textarea {
     }
 }
 
+/* ==========================================================================
+   INTERVIEW & Q&A TYPOGRAPHY
+   ========================================================================== */
+.article-qa-question-wrap {
+    margin-top: 1.4rem;
+    margin-bottom: 0.35rem;
+}
+
+.article-qa-question {
+    font-family: var(--font-serifhead);
+    font-size: 18px;
+    font-weight: 700 !important;
+    line-height: 1.45;
+    color: var(--color-ink);
+    margin: 0 0 0.35rem 0;
+    text-align: left !important;
+}
+
+.article-qa-question strong {
+    font-weight: 700 !important;
+    color: var(--color-ink);
+}
+
+.article-qa-answer {
+    margin-top: 0;
+    margin-bottom: 0.9rem;
+    font-family: var(--font-serifhead);
+    line-height: 1.65;
+}
+
+.col-qa-question {
+    font-family: var(--font-serifhead);
+    font-size: 14.5px;
+    font-weight: 700 !important;
+    line-height: 1.4;
+    color: var(--color-ink);
+    margin-top: 0.85rem;
+    margin-bottom: 0.25rem;
+    text-align: left !important;
+}
+
+.col-qa-question strong {
+    font-weight: 700 !important;
+}
+
 .back-link {
     display: inline-block;
     margin-top: 1rem;

@@ -73,10 +73,26 @@
         cleanText(str) {
             if (!str) return '';
             const normalized = String(str)
-                .replace(/[\u200B-\u200D\uFEFF]/g, '')
-                .replace(/\u00a0/g, ' ')
+                .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '')
+                .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
                 .replace(/&nbsp;/gi, ' ');
             return this.escapeHtml(normalized);
+        }
+
+        formatInline(str) {
+            if (!str) return '';
+            let text = this.cleanText(str);
+            // Markdown bold **text**
+            text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            // WhatsApp bold *text* (wrapped around words/phrases, avoiding stray asterisks)
+            text = text.replace(/(^|[\s(])\*([^\s*](?:.*?[^\s*])?)\*([\s.,!?;:)]|$)/g, '$1<strong>$2</strong>$3');
+            // WhatsApp / Markdown italic _text_
+            text = text.replace(/(^|[\s(])_([^\s_](?:.*?[^\s_])?)_([\s.,!?;:)]|$)/g, '$1<em>$2</em>$3');
+            // WhatsApp strikethrough ~text~
+            text = text.replace(/(^|[\s(])~([^\s~](?:.*?[^\s~])?)~([\s.,!?;:)]|$)/g, '$1<del>$2</del>$3');
+            // Inline code `text`
+            text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+            return text;
         }
 
         showToast(msg, type = 'success') {
@@ -330,7 +346,7 @@
                             ` : ''}
 
                             <div class="newscols">
-                                ${this.renderArticleBodyColumns(lead.body)}
+                                ${this.renderArticleBodyColumns(lead.body, this.isArticleQA(lead))}
                             </div>
 
                             <p style="margin-top: 0.5rem;">
@@ -792,7 +808,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                             ${art.standfirst ? `<p class="cont-standfirst">${this.cleanText(art.standfirst)}</p>` : ''}
                             ${art.author_name ? `<div class="byline-bar" style="margin: 0.4rem 0;"><p>${art.author_name}</p></div>` : ''}
                             <div class="cont-body">
-                                ${this.renderBodyExcerpt(art.body, 3)}
+                                ${this.renderBodyExcerpt(art.body, 3, this.isArticleQA(art))}
                             </div>
                             <a href="#/article/${art.slug}" class="read-full-report-link" style="font-size:11px; margin-top: 0.35rem; display:inline-block;">Read full report →</a>
                         </div>
@@ -819,7 +835,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                         ${main.standfirst ? `<p class="cont-standfirst">${this.cleanText(main.standfirst)}</p>` : ''}
                         ${main.author_name ? `<div class="byline-bar" style="margin: 0.4rem 0;"><p>${main.author_name}</p></div>` : ''}
                         <div class="cont-body">
-                            ${this.renderBodyExcerpt(main.body, 4)}
+                            ${this.renderBodyExcerpt(main.body, 4, this.isArticleQA(main))}
                         </div>
                         <a href="#/article/${main.slug}" class="read-full-report-link" style="font-size:11px; margin-top: 0.35rem; display:inline-block;">Read full report →</a>
                     </div>
@@ -832,7 +848,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                             </h2>
                             ${sidebar.standfirst ? `<p class="cont-standfirst">${this.cleanText(sidebar.standfirst)}</p>` : ''}
                             <div class="cont-body">
-                                ${this.renderBodyExcerpt(sidebar.body, 3)}
+                                ${this.renderBodyExcerpt(sidebar.body, 3, this.isArticleQA(sidebar))}
                             </div>
                             <a href="#/article/${sidebar.slug}" class="read-full-report-link" style="font-size:11px; margin-top: 0.35rem; display:inline-block;">Read →</a>
                         </div>
@@ -916,7 +932,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                             ` : ''}
 
                             <div class="newscols" style="margin-top: 0.75rem;">
-                                ${this.renderArticleBodyColumns(lead.body)}
+                                ${this.renderArticleBodyColumns(lead.body, this.isArticleQA(lead))}
                             </div>
 
                             <p style="margin-top: 0.5rem;">
@@ -933,34 +949,52 @@ Besides, he has been editing several other english magazines and periodicals as 
         /* ═══════════════════════════════════════════════════════════════
          * BODY HELPERS
          * ═══════════════════════════════════════════════════════════════ */
-        renderArticleBodyColumns(bodyText) {
-            const blocks = window.DNLDataStore.parseBody(bodyText);
+        isArticleQA(article) {
+            if (!article) return false;
+            return window.DNLDataStore.isArticleQA(article);
+        }
+
+        renderArticleBodyColumns(bodyText, isQA = false) {
+            const blocks = window.DNLDataStore.parseBody(bodyText, isQA);
+            let hasSeenFirstPara = false;
             return blocks.map((b, i) => {
                 if (b.type === 'head') {
                     return `<h3 class="col-head">${this.cleanText(b.text)}</h3>`;
                 }
-                return `<p class="${i === 0 ? 'dropcap' : ''}" style="${i > 0 ? 'text-indent: 1rem;' : ''}">${this.cleanText(b.text)}</p>`;
+                if (b.type === 'question') {
+                    return `<p class="col-qa-question"><strong>${this.formatInline(b.text)}</strong></p>`;
+                }
+                const isFirst = !hasSeenFirstPara;
+                hasSeenFirstPara = true;
+                return `<p class="${isFirst ? 'dropcap' : ''}" style="${!isFirst ? 'text-indent: 1rem;' : ''}">${this.formatInline(b.text)}</p>`;
             }).join('');
         }
 
         /** Render N paragraphs of body, skipping ## heads (they appear inline) */
-        renderBodyExcerpt(bodyText, maxParas) {
-            const blocks = window.DNLDataStore.parseBody(bodyText);
+        renderBodyExcerpt(bodyText, maxParas, isQA = false) {
+            const blocks = window.DNLDataStore.parseBody(bodyText, isQA);
             let paraCount = 0;
+            let hasSeenFirstPara = false;
             return blocks.map((b, i) => {
                 if (b.type === 'head') {
                     if (paraCount >= maxParas) return '';
                     return `<h4 class="col-head" style="font-size: 13px; margin: 0.35rem 0 0.15rem 0;">${this.cleanText(b.text)}</h4>`;
                 }
+                if (b.type === 'question') {
+                    if (paraCount >= maxParas) return '';
+                    return `<p class="col-qa-question" style="font-size: 13px; margin-top: 0.45rem; margin-bottom: 0.15rem;"><strong>${this.formatInline(b.text)}</strong></p>`;
+                }
                 if (paraCount >= maxParas) return '';
                 paraCount++;
-                return `<p class="${i === 0 ? 'dropcap' : ''}" style="text-indent: ${i > 0 ? '1rem' : '0'};">${this.cleanText(b.text)}</p>`;
+                const isFirst = !hasSeenFirstPara;
+                hasSeenFirstPara = true;
+                return `<p class="${isFirst ? 'dropcap' : ''}" style="text-indent: ${!isFirst ? '1rem' : '0'};">${this.formatInline(b.text)}</p>`;
             }).join('');
         }
 
         getExcerpt(text, length) {
             if (!text) return '';
-            const cleaned = text.replace(/##\s.*\n?/g, '').trim();
+            const cleaned = text.replace(/##\s.*\n?/g, '').replace(/[*_~`]/g, '').trim();
             return cleaned.length > length ? cleaned.slice(0, length) : cleaned;
         }
 
@@ -1007,7 +1041,7 @@ Besides, he has been editing several other english magazines and periodicals as 
             // 1. Record page view count
             window.DNLDataStore.recordArticleView(article.id);
 
-            const blocks = window.DNLDataStore.parseBody(article.body);
+            const blocks = window.DNLDataStore.parseBody(article.body, this.isArticleQA(article));
             const layout = article.image_layout || 'top';
             const fullUrl = window.location.origin + window.location.pathname + '#/article/' + article.slug;
             const encodedUrl = encodeURIComponent(fullUrl);
@@ -1123,11 +1157,17 @@ Besides, he has been editing several other english magazines and periodicals as 
             ` : '';
 
             // Body paragraphs helper
+            let hasSeenFirstPara = false;
             const bodyParagraphsHtml = blocks.map((b, i) => {
                 if (b.type === 'head') {
                     return `<h3 class="col-head" style="font-size: 20px; margin: 1.5rem 0 0.5rem 0;">${this.cleanText(b.text)}</h3>`;
                 }
-                return `<p class="${i === 0 ? 'dropcap' : ''}">${this.cleanText(b.text)}</p>`;
+                if (b.type === 'question') {
+                    return `<div class="article-qa-question-wrap"><p class="article-qa-question"><strong>${this.formatInline(b.text)}</strong></p></div>`;
+                }
+                const isFirst = !hasSeenFirstPara;
+                hasSeenFirstPara = true;
+                return `<p class="article-qa-answer ${isFirst ? 'dropcap' : ''}">${this.formatInline(b.text)}</p>`;
             }).join('');
 
             // Related section HTML
@@ -1289,7 +1329,21 @@ Besides, he has been editing several other english magazines and periodicals as 
             if (!Array.isArray(gallery_images)) gallery_images = [];
 
             const is_breaking = document.getElementById('storyIsBreaking') ? document.getElementById('storyIsBreaking').checked : false;
-            const body = document.getElementById('storyBody')?.value || '';
+            let rawBody = document.getElementById('storyBody')?.value || '';
+            const isInterviewChecked = document.getElementById('storyIsInterview') ? document.getElementById('storyIsInterview').checked : this.isArticleQA(this.editingArticle);
+
+            // Clean any existing mode directives
+            let cleanBody = rawBody.replace(/<!--\s*mode:(?:qa|standard)\s*-->\n?/gi, '').trim();
+            if (isInterviewChecked) {
+                if ((section || '').toLowerCase() !== 'interview') {
+                    cleanBody = '<!-- mode:qa -->\n' + cleanBody;
+                }
+            } else {
+                if ((section || '').toLowerCase() === 'interview') {
+                    cleanBody = '<!-- mode:standard -->\n' + cleanBody;
+                }
+            }
+            const body = cleanBody;
             const published = document.getElementById('storyPublished') ? document.getElementById('storyPublished').checked : true;
 
             const id = this.editingArticle?.id || ('art-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5));
@@ -1661,8 +1715,8 @@ Besides, he has been editing several other english magazines and periodicals as 
                             </div>
 
                             <div>
-                                <span class="field-label">Body copy — blank line between paragraphs, "## " for subheads</span>
-                                <textarea id="storyBody" rows="12" class="input-standard" style="resize: vertical;" placeholder="Write story text here...">${editing.body || ''}</textarea>
+                                <span class="field-label">Body copy — blank line between paragraphs, "## " for subheads. Check "Format as Interview / Q&amp;A" below to auto-bold questions, or use **bold** anywhere.</span>
+                                <textarea id="storyBody" rows="12" class="input-standard" style="resize: vertical;" placeholder="Write story text here...">${(editing.body || '').replace(/<!--\s*mode:(?:qa|standard)\s*-->\n?/gi, '')}</textarea>
                             </div>
 
                             <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 0.35rem 0;">
@@ -1674,6 +1728,11 @@ Besides, he has been editing several other english magazines and periodicals as 
                                 <label style="display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-condensed); text-transform: uppercase; font-size: 13px; letter-spacing: 0.14em; cursor: pointer; color: var(--color-brandred); font-weight: 700;">
                                     <input type="checkbox" id="storyIsBreaking" ${editing.is_breaking ? 'checked' : ''} />
                                     ⚡ Mark as Active Breaking News Headline
+                                </label>
+
+                                <label style="display: flex; align-items: center; gap: 0.5rem; font-family: var(--font-condensed); text-transform: uppercase; font-size: 13px; letter-spacing: 0.14em; cursor: pointer; color: var(--color-ink); font-weight: 700;">
+                                    <input type="checkbox" id="storyIsInterview" ${this.isArticleQA(editing) ? 'checked' : ''} />
+                                    🎙️ Format as Interview / Q&amp;A (Auto-bold questions)
                                 </label>
                             </div>
 
@@ -2844,6 +2903,17 @@ Besides, he has been editing several other english magazines and periodicals as 
             if (placementSel && colPinGroup) {
                 placementSel.addEventListener('change', () => {
                     colPinGroup.style.display = placementSel.value === 'col3' ? '' : 'none';
+                });
+            }
+
+            // Auto-check Interview Q&A toggle when section is changed to "Interview"
+            const sectionSel = document.getElementById('storySection');
+            const qaCheck = document.getElementById('storyIsInterview');
+            if (sectionSel && qaCheck) {
+                sectionSel.addEventListener('change', () => {
+                    if ((sectionSel.value || '').toLowerCase() === 'interview') {
+                        qaCheck.checked = true;
+                    }
                 });
             }
 

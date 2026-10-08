@@ -1356,22 +1356,132 @@ class DataStore {
             .replace(/^-+|-+$/g, '');
     }
 
-    parseBody(bodyText) {
+    isQuestion(str) {
+        if (!str) return false;
+        const trimmed = str.trim();
+        if (!trimmed || trimmed.startsWith('## ')) return false;
+        if (/^(?:A|Ans|Answer)\s*[:.\-]/i.test(trimmed)) return false;
+
+        // Explicit question marker prefix: "Q: ", "Q1: ", "Question: ", "Question 1:"
+        if (/^(?:Q|Q\d+|Question\s*\d*)\s*[:.\-]/i.test(trimmed)) return true;
+
+        // Strip leading numbering or bullet markers: "1. ", "• ", "- "
+        let core = trimmed.replace(/^(?:\d{1,3}[\.\)]|[•\-\*])\s+/, '').trim();
+        // Strip wrapping asterisks or quotes: e.g. *Question?*, **Question?**, "Question?"
+        core = core.replace(/^(\*{1,2}|_{1,2})(.*?)\1$/, '$2').trim();
+        core = core.replace(/^["“'‘](.*?)["”'’]$/, '$1').trim();
+
+        // Must end with question mark (optionally followed by quotes/brackets)
+        if (!/\?[’”"'\)\]]*$/.test(core)) return false;
+
+        // Common interrogative starter words:
+        const isInterrogative = /^(?:what|why|how|who|where|when|which|is|are|was|were|do|does|did|can|could|will|would|have|has|had|should|tell\s+us|talk\s+to\s+us)\b/i.test(core);
+
+        if (isInterrogative && core.length <= 400) return true;
+        if (core.length <= 250) return true;
+
+        return false;
+    }
+
+    cleanQuestionText(str) {
+        let text = (str || '').trim();
+        text = text.replace(/^(\*{1,2}|_{1,2})(.*?)\1$/, '$2').trim();
+        text = text.replace(/^["“'‘](.*?)["”'’]$/, '$1').trim();
+        text = text.replace(/^(?:(?:Q|Q\d+|Question\s*\d*)\s*[:.\-]\s*|(?:\d{1,3}[\.\)]|[•\-\*])\s+)/i, '').trim();
+        text = text.replace(/^(\*{1,2}|_{1,2})(.*?)\1$/, '$2').trim();
+        return text || (str || '').trim();
+    }
+
+    isArticleQA(article) {
+        if (!article) return false;
+        const body = article.body || '';
+        if (/<!--\s*(?:mode:standard|no-qa)\s*-->/i.test(body)) return false;
+        if (/<!--\s*(?:mode:qa|interview)\s*-->/i.test(body)) return true;
+        if ((article.section || '').trim().toLowerCase() === 'interview') return true;
+        return false;
+    }
+
+    parseBody(bodyText, isQA = null) {
         if (!bodyText) return [];
-        const clean = bodyText
-            .replace(/[\u200B-\u200D\uFEFF]/g, '')
-            .replace(/\u00a0/g, ' ')
+
+        const hasQADirective = /<!--\s*(?:mode:qa|interview)\s*-->/i.test(bodyText);
+        const hasStandardDirective = /<!--\s*(?:mode:standard|no-qa)\s*-->/i.test(bodyText);
+
+        const enableQA = (typeof isQA === 'boolean') 
+            ? (hasStandardDirective ? false : (hasQADirective || isQA))
+            : hasQADirective;
+
+        // 1. Line endings normalization (\r\n, \r -> \n)
+        let clean = String(bodyText)
+            .replace(/\r\n/g, '\n')
+            .replace(/\r/g, '\n');
+
+        // 2. Strip directives, invisible characters, BOM, soft hyphens, and convert non-breaking spaces
+        clean = clean
+            .replace(/<!--\s*mode:(?:qa|standard)\s*-->/gi, '')
+            .replace(/<!--\s*(?:interview|no-qa)\s*-->/gi, '')
+            .replace(/[\u200B-\u200D\uFEFF\u00AD]/g, '')
+            .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
             .replace(/&nbsp;/gi, ' ');
-        return clean
-            .split(/\n{2,}/)
-            .map(p => p.trim())
-            .filter(Boolean)
-            .map(p => {
-                if (p.startsWith('## ')) {
-                    return { type: 'head', text: p.slice(3).trim() };
+
+        // Split by lines, collapse horizontal whitespace within lines, and trim
+        const rawLines = clean.split('\n').map(l => l.replace(/[\t ]+/g, ' ').trim());
+
+        const blocks = [];
+        let currentParaLines = [];
+
+        const flushCurrentPara = () => {
+            if (currentParaLines.length > 0) {
+                const joined = currentParaLines.join(' ').trim();
+                if (joined) {
+                    blocks.push({ type: 'para', text: joined });
                 }
-                return { type: 'para', text: p.replace(/\n/g, ' ') };
-            });
+                currentParaLines = [];
+            }
+        };
+
+        for (let i = 0; i < rawLines.length; i++) {
+            const line = rawLines[i];
+
+            if (!line) {
+                flushCurrentPara();
+                continue;
+            }
+
+            // Subheader
+            if (line.startsWith('## ')) {
+                flushCurrentPara();
+                blocks.push({ type: 'head', text: line.slice(3).trim() });
+                continue;
+            }
+
+            // Question detection only when Q&A mode is enabled
+            if (enableQA && this.isQuestion(line)) {
+                flushCurrentPara();
+                blocks.push({ type: 'question', text: this.cleanQuestionText(line) });
+                continue;
+            }
+
+            // Explicit Answer marker check (e.g. "A: Our focus...", "Ans: ...")
+            if (enableQA && /^(?:A|Ans|Answer)\s*[:.\-]\s*/i.test(line)) {
+                flushCurrentPara();
+                const cleanedAns = line.replace(/^(?:A|Ans|Answer)\s*[:.\-]\s*/i, '').trim();
+                blocks.push({ type: 'para', text: cleanedAns });
+                continue;
+            }
+
+            // If immediately preceded by a question and accumulator is empty, this starts the answer block
+            if (enableQA && blocks.length > 0 && blocks[blocks.length - 1].type === 'question' && currentParaLines.length === 0) {
+                currentParaLines.push(line);
+                continue;
+            }
+
+            // Regular paragraph line
+            currentParaLines.push(line);
+        }
+
+        flushCurrentPara();
+        return blocks;
     }
 
     /* ─────────────────────────────────────────
