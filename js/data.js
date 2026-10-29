@@ -466,7 +466,7 @@ The camp is part of a broader government initiative to identify and nurture badm
 
 class DataStore {
     constructor() {
-        this.STORAGE_KEY_ARTICLES = 'dnl_articles_v5_scroll';
+        this.STORAGE_KEY_ARTICLES = 'dnl_articles_v6_heads';
         this.STORAGE_KEY_SETTINGS = 'dnl_settings_v5_scroll';
         this.STORAGE_KEY_INTERVIEWS = 'dnl_interviews_v1';
         this.STORAGE_KEY_CLIPPINGS = 'dnl_clippings_v1';
@@ -967,7 +967,7 @@ class DataStore {
 
     getArticleBySlug(slug) {
         if (!slug) return null;
-        const raw = String(slug).trim();
+        const raw = String(slug).trim().split('?')[0].split('#')[0].replace(/\/+$/, '');
         let decoded = raw;
         try {
             decoded = decodeURIComponent(raw).trim();
@@ -998,6 +998,10 @@ class DataStore {
             return headlineCandidates[0];
         }
 
+        // 4. Fallback: match by article ID directly
+        const idMatch = articles.find(a => a.id === raw || a.id === decoded);
+        if (idMatch) return idMatch;
+
         return null;
     }
 
@@ -1020,10 +1024,11 @@ class DataStore {
                 const decodedLower = decoded.toLowerCase();
                 const cleanReq = decodedLower.replace(/^-+|-+$/g, '');
 
+                const candidateSlugs = Array.from(new Set([slug, raw, decoded, cleanReq, cleanReq + '-'])).filter(Boolean);
                 const { data, error } = await this.supabase
                     .from('articles')
                     .select('*')
-                    .or(`slug.eq.${slug},slug.eq.${cleanReq},slug.eq.${cleanReq}-`)
+                    .in('slug', candidateSlugs)
                     .limit(5);
 
                 if (!error && data && data.length > 0) {
@@ -1106,16 +1111,26 @@ class DataStore {
 
     recordArticleView(articleId) {
         if (!articleId) return;
-        const sessionKey = 'dnl_view_' + articleId;
-        if (sessionStorage.getItem(sessionKey)) return;
-        sessionStorage.setItem(sessionKey, '1');
+        try {
+            const sessionKey = 'dnl_view_' + articleId;
+            if (typeof sessionStorage !== 'undefined' && sessionStorage) {
+                if (sessionStorage.getItem(sessionKey)) return;
+                sessionStorage.setItem(sessionKey, '1');
+            }
+        } catch (storageErr) {
+            // Private mode or restricted in-app browser safe fallback
+        }
 
-        const articles = this.getArticles();
-        const target = articles.find(a => a.id === articleId || a.slug === articleId);
-        if (!target) return;
+        try {
+            const articles = this.getArticles();
+            const target = articles.find(a => a.id === articleId || a.slug === articleId);
+            if (!target) return;
 
-        target.views = (parseInt(target.views, 10) || 0) + 1;
-        localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+            target.views = (parseInt(target.views, 10) || 0) + 1;
+            try {
+                localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+            } catch (e) {}
+        } catch (e) {}
 
         if (this.supabase) {
             this.supabase

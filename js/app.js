@@ -43,7 +43,8 @@
             this.currentRoute = hash;
 
             if (hash.startsWith('/section/')) {
-                const rawSec = decodeURIComponent(hash.replace('/section/', '').replace(/\/+$/, ''));
+                const cleanHash = hash.split('?')[0].split('#')[0].replace(/\/+$/, '');
+                const rawSec = decodeURIComponent(cleanHash.replace('/section/', ''));
                 const matchedSec = window.DNLDataStore ? window.DNLDataStore.normalizeSection(rawSec) : (SECTIONS.find(s => s.toLowerCase() === rawSec.toLowerCase()) || rawSec);
                 this.currentSection = matchedSec || rawSec;
             } else {
@@ -163,8 +164,8 @@
             } else if (route.startsWith('/section/')) {
                 mainContent = this.renderSectionPage(this.currentSection);
             } else if (route.startsWith('/article/')) {
-                const slug = route.replace('/article/', '');
-                mainContent = this.renderArticlePage(slug);
+                const cleanSlug = route.replace('/article/', '').split('?')[0].split('#')[0].replace(/\/+$/, '');
+                mainContent = this.renderArticlePage(cleanSlug);
             } else if (route === '/search') {
                 mainContent = this.renderSearchPage();
             } else if (route === '/interviews') {
