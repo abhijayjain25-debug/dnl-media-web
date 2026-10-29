@@ -116,7 +116,7 @@ Unlike conventional party-led rallies where cadres are bused in from peripheral 
         slug: "a-peoples-victory-that-must-not-become-a-political-stage",
         headline: "A PEOPLE'S VICTORY THAT MUST NOT BECOME A POLITICAL STAGE",
         standfirst: "Students must protect their civic autonomy from opportunist party machines.",
-        section: "Crime",
+        section: "Politics",
         body: `The resignation of Dharmendra Pradhan is being celebrated as a people's victory, but if the movement now becomes a political stage, it risks surrendering the moral authority that forced the government to blink.
 
 ## THE TEMPTATION OF CO-OPTATION
@@ -196,7 +196,7 @@ While members agreed on the need for fiscal decentralization, intense debate cen
         slug: "ncr-startup-corridors-cross-12b-in-venture-financing",
         headline: "NCR STARTUP CORRIDORS CROSS $12B IN VENTURE FINANCING AMID TECH SURGE",
         standfirst: "Gurugram and Noida emerge as primary hubs for AI automation, green mobility, and enterprise SaaS.",
-        section: "City Cuisine",
+        section: "City",
         body: `Venture capital investment into the National Capital Region has surged past $12 billion this calendar year, according to newly released industry data from the Indian Angel Network and Venture Intelligence.
 
 ## SURGE IN DEEP-TECH AND MOBILITY
@@ -319,7 +319,7 @@ Community leaders reiterated demands for real-time digital monitoring at industr
         slug: "retail-inflation-dips-across-northern-corridors",
         headline: "RETAIL INFLATION DIPS AS HARVEST ARRIVALS STABILIZE PRICES",
         standfirst: "Vegetable and edible oil prices ease in Azadpur and Ghazipur wholesale markets.",
-        section: "City Cuisine",
+        section: "City",
         body: `Consumer price inflation across the National Capital Region moderated to 4.1% this month, providing welcome relief to household budgets across Delhi, Gurgaon, and Noida.
 
 ## MANDI ARRIVALS BOOST SUPPLY
@@ -342,7 +342,7 @@ Market analysts project stable retail prices through the festive season, support
         slug: "why-citizen-journalism-remains-the-defense-of-democracy",
         headline: "WHY CITIZEN JOURNALISM IS THE ULTIMATE DEFENSE OF DEMOCRACY",
         standfirst: "When television studios trade truth for access, ground reporting becomes a civic duty.",
-        section: "Crime",
+        section: "Nation",
         body: `Freedom of the press was never intended to be the exclusive preserve of well-funded media conglomerates or privileged studio anchors. Historically, some of the most consequential dispatches were printed in small basements by journalists driven solely by truth.
 
 ## THE STREET AS THE REAL EDITORIAL DESK
@@ -359,6 +359,37 @@ Delhi News Live was founded on the conviction that honest, uncompromising report
         sort_order: 32,
         published: true,
         published_at: "2026-08-29T11:30:00.000Z"
+    },
+
+        {
+        id: "art-crime-kalindi-kunj",
+        slug: "four-arrested-in-sensational-kalindi-kunj-murder-case",
+        headline: "FOUR ARRESTED IN SENSATIONAL KALINDI KUNJ MURDER CASE",
+        standfirst: "Police crack gang-rivalry stabbing case within 24 hours in southeast Delhi.",
+        section: "Crime",
+        body: `Delhi Police have arrested four accused in the murder of Shahid Hussain alias Chor, who was allegedly attacked near Shriram Chowk in Kalindi Kunj. The victim succumbed to injuries shortly after arrival at the hospital.\n\n## CRACKED WITHIN 24 HOURS\n\nThe arrested accused have been identified as Karan, Abuzer, Monu Malik, and Gaurav Gumma. Police said the incident stemmed from an alleged longstanding rivalry dating back to 2025.\n\n## SWIFT POLICE INTERVENTION\n\nSpecial investigation teams tracked CCTV camera feeds across Jamia Nagar and Sarita Vihar to intercept the suspects.\n\nRaids continue to trace remaining associates linked to the case.`,
+        image_url: "https://vsghhtrozahyxdzzxmkh.supabase.co/storage/v1/object/public/media/articles/1792075782129_5vb888_2073423.jpg",
+        image_caption: "Delhi Police deployment following the Kalindi Kunj murder arrest",
+        author_name: "SYED WAJID",
+        placement: "col3",
+        sort_order: 33,
+        published: true,
+        published_at: "2026-10-15T14:50:01.617Z"
+    },
+    {
+        id: "art-cuisine-chandni-chowk",
+        slug: "old-delhi-food-trail-chandni-chowk-century-old-sweet-shops",
+        headline: "OLD DELHI FOOD TRAIL: CHANDNI CHOWK’S CENTURY-OLD SWEET SHOPS AND KEBAB LANES",
+        standfirst: "From morning bedmi pooris to midnight rabri jalebis, a sensory journey through the capital’s timeless culinary heritage.",
+        section: "City Cuisine",
+        body: `In the narrow, labyrinthine bylanes of Shahjahanabad, centuries of gastronomic heritage continue to simmer in seasoned brass degchis and sizzling karahis. For food connoisseurs, Old Delhi is not just a destination—it is a living museum of imperial recipes preserved across generations.\n\n## THE MORNING RUSH AT PARANTHE WALI GALI\n\nAs dawn breaks over Chandni Chowk, the iconic shops of Paranthe Wali Gali begin rolling out deep-fried, layered paranthas stuffed with spiced potatoes, crushed paneer, and rabri.\n\n## MATIA MAHAL’S NIGHTTIME FEAST\n\nPast the grand steps of Jama Masjid, the aromatic smoke of charcoal grills fills Matia Mahal. Here, fourth-generation kebab ustaads turn skewers of melt-in-the-mouth seekh and boti kebabs.\n\n## THE TIMELESS SWEET FINALE\n\nNo culinary trail is complete without the thickened, saffron-infused rabri poured over crisp golden jalebis near Dariba Kalan.`,
+        image_url: "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=800&auto=format&fit=crop&q=80",
+        image_caption: "Steaming street delicacies in the historic culinary quarter of Old Delhi",
+        author_name: "SYED WAJID",
+        placement: "col3",
+        sort_order: 34,
+        published: true,
+        published_at: "2026-10-20T10:00:00.000Z"
     },
 
     /* ─── CONTINUATION SCROLL — ROW 4 (3-col horizontal strip) ─── */
@@ -885,15 +916,20 @@ class DataStore {
         const lower = raw.toLowerCase();
         const normalized = lower.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
 
-        if (lower === 'opinion' || normalized === 'opinion') return 'Crime';
-        if (lower === 'culture' || normalized === 'culture') return 'Culture and Events';
-        if (lower === 'business' || normalized === 'business') return 'City Cuisine';
-
+        // Match against valid modern sections
         const match = SECTIONS.find(s => {
             const sLower = s.toLowerCase();
             return sLower === lower || sLower === normalized;
         });
         if (match) return match;
+
+        // Legacy Culture mapped to Culture and Events
+        if (lower === 'culture' || normalized === 'culture') return 'Culture and Events';
+
+        // Legacy Opinion and Business MUST NOT bleed into Crime or City Cuisine!
+        // Map them to Politics and City so they stay in relevant desks
+        if (lower === 'opinion' || normalized === 'opinion') return 'Politics';
+        if (lower === 'business' || normalized === 'business') return 'City';
 
         return raw;
     }
