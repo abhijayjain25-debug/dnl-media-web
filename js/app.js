@@ -6,7 +6,7 @@
 (function () {
     'use strict';
 
-    const SECTIONS = ['Nation', 'City', 'World', 'Politics', 'Business', 'Sport', 'Culture', 'Opinion', 'Interview'];
+    const SECTIONS = ['Nation', 'City', 'World', 'Politics', 'City Cuisine', 'Sport', 'Culture and Events', 'Crime', 'Interview'];
     const CALIBRATION_COLORS = ['#8f8f8f', '#e5007d', '#00a0e3', '#f6e500', '#111111'];
 
     class DNLApp {
@@ -44,7 +44,7 @@
 
             if (hash.startsWith('/section/')) {
                 const rawSec = decodeURIComponent(hash.replace('/section/', '').replace(/\/+$/, ''));
-                const matchedSec = SECTIONS.find(s => s.toLowerCase() === rawSec.toLowerCase());
+                const matchedSec = window.DNLDataStore ? window.DNLDataStore.normalizeSection(rawSec) : (SECTIONS.find(s => s.toLowerCase() === rawSec.toLowerCase()) || rawSec);
                 this.currentSection = matchedSec || rawSec;
             } else {
                 this.currentSection = null;
@@ -288,7 +288,7 @@
                 <nav class="nav-bar">
                     <a href="#/" class="nav-link ${isHome ? 'active' : ''}">Front Page</a>
                     ${SECTIONS.map(s => `
-                        <a href="#/section/${s.toLowerCase()}" class="nav-link ${currentSecLower === s.toLowerCase() ? 'active' : ''}">
+                        <a href="#/section/${encodeURIComponent(s.toLowerCase())}" class="nav-link ${currentSecLower === s.toLowerCase() ? 'active' : ''}">
                             ${s}
                         </a>
                     `).join('')}
@@ -884,7 +884,7 @@ Besides, he has been editing several other english magazines and periodicals as 
          * SECTION PAGE — same broadsheet scroll for section-filtered stories
          * ═══════════════════════════════════════════════════════════════ */
         renderSectionPage(section) {
-            const canonicalSection = SECTIONS.find(s => s.toLowerCase() === (section || '').toLowerCase()) || section;
+            const canonicalSection = window.DNLDataStore ? window.DNLDataStore.normalizeSection(section) : (SECTIONS.find(s => s.toLowerCase() === (section || '').toLowerCase()) || section);
             const articles = window.DNLDataStore.getArticlesBySection(canonicalSection);
             const lead = articles.find(a => a.placement === 'lead') || articles[0];
             const others = articles.filter(a => a.id !== lead?.id);
@@ -906,7 +906,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                             ${canonicalSection}
                         </h1>
                         <span style="font-family: var(--font-condensed); font-size: 13px; text-transform: uppercase; color: var(--color-stone); letter-spacing: 0.14em;">
-                            ${articles.length} Reports
+                            ${articles.length} ${articles.length === 1 ? 'Report' : 'Reports'}
                         </span>
                     </div>
 
@@ -1305,7 +1305,7 @@ Besides, he has been editing several other english magazines and periodicals as 
 
             const headline = (document.getElementById('storyHeadline')?.value || '').trim();
             const standfirst = (document.getElementById('storyStandfirst')?.value || '').trim();
-            const section = document.getElementById('storySection')?.value || (this.editingArticle?.section || 'Nation');
+            const section = window.DNLDataStore ? window.DNLDataStore.normalizeSection(document.getElementById('storySection')?.value || (this.editingArticle?.section || 'Nation')) : (document.getElementById('storySection')?.value || 'Nation');
             const placement = document.getElementById('storyPlacement')?.value || (this.editingArticle?.placement || 'col3');
             const columnPinEl = document.getElementById('storyColumnPin');
             const column_pin = (placement === 'col3' && columnPinEl) ? columnPinEl.value : (this.editingArticle?.column_pin || 'auto');
@@ -1314,7 +1314,7 @@ Besides, he has been editing several other english magazines and periodicals as 
             if (!slug && headline) {
                 slug = window.DNLDataStore.slugify(headline);
             }
-            const image_url = document.getElementById('storyImage')?.value || this.editingArticle?.image_url || '';
+            const image_url = document.getElementById('storyImage') ? document.getElementById('storyImage').value : (this.editingArticle?.image_url || '');
             const image_caption = (document.getElementById('storyCaption')?.value || '').trim();
             const selectedLayoutRadio = document.querySelector('input[name="storyImageLayout"]:checked');
             const image_layout = selectedLayoutRadio ? selectedLayoutRadio.value : (this.editingArticle?.image_layout || 'top');
@@ -1558,7 +1558,7 @@ Besides, he has been editing several other english magazines and periodicals as 
                                 <div>
                                     <span class="field-label">Section</span>
                                     <select id="storySection" class="input-standard">
-                                        ${SECTIONS.map(s => `<option value="${s}" ${editing.section === s ? 'selected' : ''}>${s}</option>`).join('')}
+                                        ${SECTIONS.map(s => `<option value="${s}" ${(window.DNLDataStore ? window.DNLDataStore.normalizeSection(editing.section || 'Nation') : (editing.section || 'Nation')) === s ? 'selected' : ''}>${s}</option>`).join('')}
                                     </select>
                                 </div>
                                 <div>

@@ -324,3 +324,10 @@ BEGIN
     END;
 END $$;
 
+-- =============================================================================
+-- 5. SECTION MIGRATIONS (Opinion -> Crime, Culture -> Culture and Events, Business -> City Cuisine)
+-- =============================================================================
+UPDATE public.articles SET section = 'Crime' WHERE LOWER(section) = 'opinion';
+UPDATE public.articles SET section = 'Culture and Events' WHERE LOWER(section) = 'culture';
+UPDATE public.articles SET section = 'City Cuisine' WHERE LOWER(section) = 'business';
+

@@ -3,7 +3,7 @@
  * Broadsheet single-scroll newspaper edition
  */
 
-const SECTIONS = ['Nation', 'City', 'World', 'Politics', 'Business', 'Sport', 'Culture', 'Opinion', 'Interview'];
+const SECTIONS = ['Nation', 'City', 'World', 'Politics', 'City Cuisine', 'Sport', 'Culture and Events', 'Crime', 'Interview'];
 
 const DEFAULT_SETTINGS = {
     id: 1,
@@ -116,7 +116,7 @@ Unlike conventional party-led rallies where cadres are bused in from peripheral 
         slug: "a-peoples-victory-that-must-not-become-a-political-stage",
         headline: "A PEOPLE'S VICTORY THAT MUST NOT BECOME A POLITICAL STAGE",
         standfirst: "Students must protect their civic autonomy from opportunist party machines.",
-        section: "Opinion",
+        section: "Crime",
         body: `The resignation of Dharmendra Pradhan is being celebrated as a people's victory, but if the movement now becomes a political stage, it risks surrendering the moral authority that forced the government to blink.
 
 ## THE TEMPTATION OF CO-OPTATION
@@ -196,7 +196,7 @@ While members agreed on the need for fiscal decentralization, intense debate cen
         slug: "ncr-startup-corridors-cross-12b-in-venture-financing",
         headline: "NCR STARTUP CORRIDORS CROSS $12B IN VENTURE FINANCING AMID TECH SURGE",
         standfirst: "Gurugram and Noida emerge as primary hubs for AI automation, green mobility, and enterprise SaaS.",
-        section: "Business",
+        section: "City Cuisine",
         body: `Venture capital investment into the National Capital Region has surged past $12 billion this calendar year, according to newly released industry data from the Indian Angel Network and Venture Intelligence.
 
 ## SURGE IN DEEP-TECH AND MOBILITY
@@ -271,7 +271,7 @@ With this victory, the Delhi squad heads into next week's grand final in Bengalu
         slug: "heritage-restoration-of-shahjahanabad-havelis",
         headline: "HERITAGE RESTORATION BREATHES NEW LIFE INTO OLD DELHI'S HAVELIS",
         standfirst: "Architects and local families collaborate to restore 19th-century courtyards and Mughal stonework in Shahjahanabad.",
-        section: "Culture",
+        section: "Culture and Events",
         body: `In the winding alleys of Chandni Chowk and Ballimaran, a grassroots architectural renaissance is quietly transforming centuries-old residences into thriving cultural centers, artisan workshops, and public museums.
 
 ## PRESERVING THE WALLED CITY
@@ -319,7 +319,7 @@ Community leaders reiterated demands for real-time digital monitoring at industr
         slug: "retail-inflation-dips-across-northern-corridors",
         headline: "RETAIL INFLATION DIPS AS HARVEST ARRIVALS STABILIZE PRICES",
         standfirst: "Vegetable and edible oil prices ease in Azadpur and Ghazipur wholesale markets.",
-        section: "Business",
+        section: "City Cuisine",
         body: `Consumer price inflation across the National Capital Region moderated to 4.1% this month, providing welcome relief to household budgets across Delhi, Gurgaon, and Noida.
 
 ## MANDI ARRIVALS BOOST SUPPLY
@@ -342,7 +342,7 @@ Market analysts project stable retail prices through the festive season, support
         slug: "why-citizen-journalism-remains-the-defense-of-democracy",
         headline: "WHY CITIZEN JOURNALISM IS THE ULTIMATE DEFENSE OF DEMOCRACY",
         standfirst: "When television studios trade truth for access, ground reporting becomes a civic duty.",
-        section: "Opinion",
+        section: "Crime",
         body: `Freedom of the press was never intended to be the exclusive preserve of well-funded media conglomerates or privileged studio anchors. Historically, some of the most consequential dispatches were printed in small basements by journalists driven solely by truth.
 
 ## THE STREET AS THE REAL EDITORIAL DESK
@@ -632,6 +632,7 @@ class DataStore {
 
                         return {
                             ...a,
+                            section: this.normalizeSection(a.section),
                             headline: headline,
                             standfirst: standfirst,
                             body: body,
@@ -878,12 +879,32 @@ class DataStore {
     /* ─────────────────────────────────────────
      * ARTICLES
      * ───────────────────────────────────────── */
+    normalizeSection(sec) {
+        if (!sec) return 'Nation';
+        const raw = String(sec).trim();
+        const lower = raw.toLowerCase();
+        const normalized = lower.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+        if (lower === 'opinion' || normalized === 'opinion') return 'Crime';
+        if (lower === 'culture' || normalized === 'culture') return 'Culture and Events';
+        if (lower === 'business' || normalized === 'business') return 'City Cuisine';
+
+        const match = SECTIONS.find(s => {
+            const sLower = s.toLowerCase();
+            return sLower === lower || sLower === normalized;
+        });
+        if (match) return match;
+
+        return raw;
+    }
+
     getArticles() {
         try {
             const data = localStorage.getItem(this.STORAGE_KEY_ARTICLES);
             const articles = data ? JSON.parse(data) : INITIAL_ARTICLES;
             return articles.map(a => ({
                 ...a,
+                section: this.normalizeSection(a.section),
                 placement: (a.placement || 'col3').toString().trim().toLowerCase(),
                 column_pin: (a.column_pin || 'auto').toString().trim().toLowerCase(),
                 image_layout: a.image_layout || 'top',
@@ -974,6 +995,7 @@ class DataStore {
                     data.forEach(dbArt => {
                         const formatted = {
                             ...dbArt,
+                            section: this.normalizeSection(dbArt.section),
                             headline: (dbArt.headline || '').trim(),
                             standfirst: (dbArt.standfirst || '').trim(),
                             body: dbArt.body || '',
@@ -1005,8 +1027,11 @@ class DataStore {
     }
 
     getArticlesBySection(section) {
-        const secLower = section.toLowerCase();
-        return this.getPublishedArticles().filter(a => a.section && a.section.toLowerCase() === secLower);
+        const canonical = this.normalizeSection(section).toLowerCase();
+        return this.getPublishedArticles().filter(a => {
+            if (!a.section) return false;
+            return this.normalizeSection(a.section).toLowerCase() === canonical;
+        });
     }
 
     getBreakingArticle() {
@@ -1099,6 +1124,7 @@ class DataStore {
         const toSave = {
             ...article,
             id: articleId,
+            section: this.normalizeSection(article.section || 'Nation'),
             headline: (article.headline || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim(),
             standfirst: (article.standfirst || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim(),
             body: (article.body || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' '),
@@ -1348,12 +1374,13 @@ class DataStore {
 
     slugify(text) {
         if (!text) return 'story-' + Date.now();
-        return text
+        const clean = text
             .toLowerCase()
             .replace(/['’‘"“”]/g, '')
             .replace(/[^a-z0-9]+/g, '-')
             .slice(0, 80)
             .replace(/^-+|-+$/g, '');
+        return clean || ('story-' + Date.now());
     }
 
     isQuestion(str) {
