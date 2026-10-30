@@ -1634,11 +1634,9 @@ class DataStore {
         // Standard Supabase Auth sign-in
         if (this.supabase && this.supabase.auth) {
             try {
-                const cleanEmail = email.trim().toLowerCase();
-                const cleanPassword = password.trim();
                 const { data, error } = await this.supabase.auth.signInWithPassword({
-                    email: cleanEmail,
-                    password: cleanPassword
+                    email: email.trim(),
+                    password: password
                 });
 
                 if (error) {
