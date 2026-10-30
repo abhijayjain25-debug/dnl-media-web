@@ -156,7 +156,8 @@
             if (!this.appRoot) return;
 
             const settings = window.DNLDataStore.getSettings();
-            const route = this.currentRoute;
+            const rawRoute = (this.currentRoute || '/').trim();
+            const route = rawRoute.split('?')[0].split('#')[0].replace(/\/+$/, '') || '/';
 
             let mainContent = '';
             if (route === '/' || route === '') {
@@ -1285,17 +1286,27 @@ Besides, he has been editing several other english magazines and periodicals as 
                     <h1 class="auth-title">Newsroom login</h1>
                     <p class="auth-subtitle">Authorized editorial access for Delhi News Live.</p>
 
+                    <div id="authErrorMessage" style="display:none; padding: 0.75rem 0.9rem; margin-top: 0.85rem; background: #fff1f2; border: 1.5px solid #e11d48; color: #9f1239; font-size: 13px; line-height: 1.45; font-family: var(--font-serifhead);"></div>
+
                     <form id="authForm" class="auth-form">
                         <div>
                             <span class="field-label">Editor Email</span>
-                            <input type="email" id="authEmail" class="input-standard" placeholder="name@delhinewslive.co.in" autocomplete="email" required />
+                            <input type="email" id="authEmail" class="input-standard" placeholder="name@delhinewslive.co.in" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" required />
                         </div>
                         <div>
-                            <span class="field-label">Password</span>
-                            <input type="password" id="authPassword" class="input-standard" placeholder="••••••••••••" autocomplete="current-password" required minlength="6" />
+                            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.15rem;">
+                                <span class="field-label" style="margin-bottom: 0;">Password</span>
+                                <button type="button" id="btnToggleAuthPassword" style="background: none; border: none; font-family: var(--font-condensed); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; cursor: pointer; color: var(--color-stone); padding: 0; text-decoration: underline;">Show password</button>
+                            </div>
+                            <input type="password" id="authPassword" class="input-standard" placeholder="••••••••••••" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" required minlength="6" />
                         </div>
-                        <button type="submit" class="btn-primary">Sign in to Newsroom</button>
+                        <button type="submit" class="btn-primary" style="margin-top: 0.35rem;">Sign in to Newsroom</button>
                     </form>
+
+                    <div style="margin-top: 1.5rem; padding-top: 0.85rem; border-top: 1px dashed var(--color-rule); font-family: var(--font-condensed); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-stone); line-height: 1.6;">
+                        <p>✦ Only authorized editorial staff may sign in.</p>
+                        <p style="margin-top: 0.5rem;"><a href="#/" class="back-link" style="font-size: 11px;">← Return to Front Page</a></p>
+                    </div>
                 </div>
             `;
         }
@@ -2351,11 +2362,32 @@ Besides, he has been editing several other english magazines and periodicals as 
                 });
             });
 
+            // Toggle Show/Hide Password on Login Form
+            const btnTogglePass = document.getElementById('btnToggleAuthPassword');
+            const authPassInput = document.getElementById('authPassword');
+            if (btnTogglePass && authPassInput) {
+                btnTogglePass.addEventListener('click', () => {
+                    if (authPassInput.type === 'password') {
+                        authPassInput.type = 'text';
+                        btnTogglePass.innerText = 'Hide password';
+                    } else {
+                        authPassInput.type = 'password';
+                        btnTogglePass.innerText = 'Show password';
+                    }
+                });
+            }
+
             // Auth Login Form
             const authForm = document.getElementById('authForm');
             if (authForm) {
                 authForm.addEventListener('submit', async (e) => {
                     e.preventDefault();
+                    const errEl = document.getElementById('authErrorMessage');
+                    if (errEl) {
+                        errEl.style.display = 'none';
+                        errEl.innerText = '';
+                    }
+
                     const submitBtn = authForm.querySelector('button[type="submit"]');
                     const origText = submitBtn ? submitBtn.innerText : '';
                     if (submitBtn) {
@@ -2363,14 +2395,24 @@ Besides, he has been editing several other english magazines and periodicals as 
                         submitBtn.disabled = true;
                     }
 
-                    const email = document.getElementById('authEmail').value;
-                    const pass = document.getElementById('authPassword').value;
+                    const email = (document.getElementById('authEmail')?.value || '').trim();
+                    const pass = (document.getElementById('authPassword')?.value || '').trim();
 
                     try {
                         await window.DNLDataStore.login(email, pass);
                         this.render();
                     } catch (err) {
-                        alert('Login failed: ' + (err.message || err));
+                        const rawMsg = (err && err.message) ? err.message : String(err);
+                        const displayMsg = rawMsg.toLowerCase().includes('invalid login credentials')
+                            ? 'Invalid email or password. Please verify that your email is registered and your password is correct (check Caps Lock).'
+                            : rawMsg;
+                        if (errEl) {
+                            errEl.innerText = '⚠️ ' + displayMsg;
+                            errEl.style.display = 'block';
+                            errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        } else {
+                            alert('Login failed: ' + displayMsg);
+                        }
                     } finally {
                         if (submitBtn) {
                             submitBtn.innerText = origText;
