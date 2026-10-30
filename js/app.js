@@ -155,53 +155,67 @@
         render() {
             if (!this.appRoot) return;
 
-            const settings = window.DNLDataStore.getSettings();
-            const rawRoute = (this.currentRoute || '/').trim();
-            const route = rawRoute.split('?')[0].split('#')[0].replace(/\/+$/, '') || '/';
+            try {
+                const settings = window.DNLDataStore.getSettings();
+                const rawRoute = (this.currentRoute || '/').trim();
+                const route = rawRoute.split('?')[0].split('#')[0].replace(/\/+$/, '') || '/';
 
-            let mainContent = '';
-            if (route === '/' || route === '') {
-                mainContent = this.renderFrontPageScroll();
-            } else if (route.startsWith('/section/')) {
-                mainContent = this.renderSectionPage(this.currentSection);
-            } else if (route.startsWith('/article/')) {
-                const cleanSlug = route.replace('/article/', '').split('?')[0].split('#')[0].replace(/\/+$/, '');
-                mainContent = this.renderArticlePage(cleanSlug);
-            } else if (route === '/search') {
-                mainContent = this.renderSearchPage();
-            } else if (route === '/interviews') {
-                mainContent = this.renderInterviewsPage();
-            } else if (route === '/gallery' || route === '/archive') {
-                mainContent = this.renderGalleryPage();
-            } else if (route === '/admin' || route === '/auth') {
-                const session = window.DNLDataStore.getAuthSession();
-                if (!session) {
-                    mainContent = this.renderAuthPage();
+                let mainContent = '';
+                if (route === '/' || route === '') {
+                    mainContent = this.renderFrontPageScroll();
+                } else if (route.startsWith('/section/')) {
+                    mainContent = this.renderSectionPage(this.currentSection);
+                } else if (route.startsWith('/article/')) {
+                    const cleanSlug = route.replace('/article/', '').split('?')[0].split('#')[0].replace(/\/+$/, '');
+                    mainContent = this.renderArticlePage(cleanSlug);
+                } else if (route === '/search') {
+                    mainContent = this.renderSearchPage();
+                } else if (route === '/interviews') {
+                    mainContent = this.renderInterviewsPage();
+                } else if (route === '/gallery' || route === '/archive') {
+                    mainContent = this.renderGalleryPage();
+                } else if (route === '/admin' || route === '/auth') {
+                    const session = window.DNLDataStore.getAuthSession();
+                    if (!session) {
+                        mainContent = this.renderAuthPage();
+                    } else {
+                        mainContent = this.renderAdminPage();
+                    }
                 } else {
-                    mainContent = this.renderAdminPage();
+                    mainContent = this.render404Page();
                 }
-            } else {
-                mainContent = this.render404Page();
+
+                this.appRoot.innerHTML = `
+                    <div class="paper-page-wrapper">
+                        <main class="paper">
+                            ${this.renderBreakingBanner()}
+                            ${this.renderTopMetaStrip(settings)}
+                            ${this.renderMasthead(settings)}
+                            ${this.renderSubMastheadStrip(settings)}
+                            ${this.renderNavBar()}
+                            <div id="route-view-container">
+                                ${mainContent}
+                            </div>
+                            ${this.renderCalibrationDots()}
+                            ${this.renderFooter()}
+                        </main>
+                    </div>
+                `;
+
+                this.attachEventListeners();
+            } catch (renderErr) {
+                console.error('⚠️ Critical rendering error in DNLApp:', renderErr);
+                this.appRoot.innerHTML = `
+                    <div class="paper-page-wrapper">
+                        <main class="paper" style="padding: 4rem 1.5rem; text-align: center;">
+                            <h1 style="font-family: var(--font-poster); font-size: 32px; text-transform: uppercase;">Delhi News Live</h1>
+                            <p style="font-family: var(--font-serifhead); font-style: italic; color: var(--color-stone); margin: 1rem 0;">A momentary loading glitch occurred while opening this dispatch.</p>
+                            <button onclick="window.location.reload()" style="background: var(--color-ink); color: #fff; padding: 0.6rem 1.5rem; border: none; font-family: var(--font-condensed); text-transform: uppercase; letter-spacing: 0.1em; cursor: pointer; font-size: 13px;">Refresh Dispatch</button>
+                            <p style="margin-top: 1.5rem;"><a href="#/" style="font-family: var(--font-condensed); text-transform: uppercase; letter-spacing: 0.08em; color: var(--color-ink); font-weight: 700;">Return to Front Page</a></p>
+                        </main>
+                    </div>
+                `;
             }
-
-            this.appRoot.innerHTML = `
-                <div class="paper-page-wrapper">
-                    <main class="paper">
-                        ${this.renderBreakingBanner()}
-                        ${this.renderTopMetaStrip(settings)}
-                        ${this.renderMasthead(settings)}
-                        ${this.renderSubMastheadStrip(settings)}
-                        ${this.renderNavBar()}
-                        <div id="route-view-container">
-                            ${mainContent}
-                        </div>
-                        ${this.renderCalibrationDots()}
-                        ${this.renderFooter()}
-                    </main>
-                </div>
-            `;
-
-            this.attachEventListeners();
         }
 
         renderTopMetaStrip(settings) {
@@ -3319,8 +3333,16 @@ Besides, he has been editing several other english magazines and periodicals as 
         }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-        window.dnlApp = new DNLApp();
-    });
+    function initDNLApp() {
+        if (!window.dnlApp) {
+            window.dnlApp = new DNLApp();
+        }
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initDNLApp);
+    } else {
+        initDNLApp();
+    }
 })();
 

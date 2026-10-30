@@ -471,22 +471,56 @@ class DataStore {
         this.STORAGE_KEY_INTERVIEWS = 'dnl_interviews_v1';
         this.STORAGE_KEY_CLIPPINGS = 'dnl_clippings_v1';
         this.STORAGE_KEY_AUTH = 'dnl_newsroom_auth';
+        this._memStore = {};
         this.supabase = window.supabaseClient || null;
         this.isSyncing = false;
         this.init();
     }
 
+    storageGet(key) {
+        try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+                const val = window.localStorage.getItem(key);
+                if (val !== null) return val;
+            }
+        } catch (e) {}
+        return this._memStore ? (this._memStore[key] || null) : null;
+    }
+
+    storageSet(key, val) {
+        try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.setItem(key, String(val));
+            }
+        } catch (e) {}
+        if (!this._memStore) this._memStore = {};
+        this._memStore[key] = String(val);
+    }
+
+    storageRemove(key) {
+        try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.removeItem(key);
+            }
+        } catch (e) {}
+        if (this._memStore) delete this._memStore[key];
+    }
+
     init() {
-        // Ensure initial local cache is populated
-        const storedArticles = localStorage.getItem(this.STORAGE_KEY_ARTICLES);
-        if (!storedArticles || JSON.parse(storedArticles).length < INITIAL_ARTICLES.length) {
-            localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(INITIAL_ARTICLES));
-        }
-        if (!localStorage.getItem(this.STORAGE_KEY_SETTINGS)) {
-            localStorage.setItem(this.STORAGE_KEY_SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
-        }
-        if (!localStorage.getItem(this.STORAGE_KEY_CLIPPINGS)) {
-            localStorage.setItem(this.STORAGE_KEY_CLIPPINGS, JSON.stringify([]));
+        // Ensure initial local cache is populated safely
+        try {
+            const storedArticles = this.storageGet(this.STORAGE_KEY_ARTICLES);
+            if (!storedArticles || JSON.parse(storedArticles).length < INITIAL_ARTICLES.length) {
+                this.storageSet(this.STORAGE_KEY_ARTICLES, JSON.stringify(INITIAL_ARTICLES));
+            }
+            if (!this.storageGet(this.STORAGE_KEY_SETTINGS)) {
+                this.storageSet(this.STORAGE_KEY_SETTINGS, JSON.stringify(DEFAULT_SETTINGS));
+            }
+            if (!this.storageGet(this.STORAGE_KEY_CLIPPINGS)) {
+                this.storageSet(this.STORAGE_KEY_CLIPPINGS, JSON.stringify([]));
+            }
+        } catch (e) {
+            console.warn('⚠️ Cache initialization note:', e);
         }
 
         // Initialize Supabase sync and realtime listeners
@@ -847,7 +881,7 @@ class DataStore {
      * ───────────────────────────────────────── */
     getSettings() {
         try {
-            const data = localStorage.getItem(this.STORAGE_KEY_SETTINGS);
+            const data = this.storageGet(this.STORAGE_KEY_SETTINGS);
             return data ? { ...DEFAULT_SETTINGS, ...JSON.parse(data) } : DEFAULT_SETTINGS;
         } catch (e) {
             return DEFAULT_SETTINGS;
@@ -936,7 +970,7 @@ class DataStore {
 
     getArticles() {
         try {
-            const data = localStorage.getItem(this.STORAGE_KEY_ARTICLES);
+            const data = this.storageGet(this.STORAGE_KEY_ARTICLES);
             const articles = data ? JSON.parse(data) : INITIAL_ARTICLES;
             return articles.map(a => ({
                 ...a,
@@ -1014,6 +1048,10 @@ class DataStore {
         let article = this.getArticleBySlug(slug);
         if (article) return article;
 
+        if (!this.supabase && window.supabaseClient) {
+            this.supabase = window.supabaseClient;
+        }
+
         if (this.supabase) {
             try {
                 const raw = String(slug).trim();
@@ -1025,28 +1063,65 @@ class DataStore {
                 const cleanReq = decodedLower.replace(/^-+|-+$/g, '');
 
                 const candidateSlugs = Array.from(new Set([slug, raw, decoded, cleanReq, cleanReq + '-'])).filter(Boolean);
-                const { data, error } = await this.supabase
+                const res = await this.supabase
                     .from('articles')
                     .select('*')
                     .in('slug', candidateSlugs)
                     .limit(5);
 
-                if (!error && data && data.length > 0) {
+                let data = (!res.error && res.data && res.data.length > 0) ? res.data : null;
+
+                if (!data || data.length === 0) {
+                    const fallbackRes = await this.supabase
+                        .from('articles')
+                        .select('*')
+                        .or(`slug.ilike.%${cleanReq}%,id.eq.${slug}`)
+                        .limit(5);
+                    if (!fallbackRes.error && fallbackRes.data && fallbackRes.data.length > 0) {
+                        data = fallbackRes.data;
+                    }
+                }
+
+                if (data && data.length > 0) {
                     const articles = this.getArticles();
                     data.forEach(dbArt => {
+                        let gallery = [];
+                        if (Array.isArray(dbArt.gallery_images)) {
+                            gallery = dbArt.gallery_images;
+                        } else if (typeof dbArt.gallery_images === 'string' && dbArt.gallery_images.trim().startsWith('[')) {
+                            try { gallery = JSON.parse(dbArt.gallery_images); } catch (e) {}
+                        }
+
+                        let caption = (dbArt.image_caption || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ');
+                        let layout = dbArt.image_layout;
+                        let breaking = dbArt.is_breaking;
+                        let views = dbArt.views;
+
+                        const metaMatch = caption.match(/<!--dnl:(.*?)-->/);
+                        if (metaMatch) {
+                            try {
+                                const meta = JSON.parse(metaMatch[1]);
+                                if (!layout && meta.layout) layout = meta.layout;
+                                if (typeof breaking !== 'boolean' && typeof meta.breaking === 'boolean') breaking = meta.breaking;
+                                if ((views === undefined || views === null) && meta.views !== undefined) views = meta.views;
+                                if ((!gallery || gallery.length === 0) && Array.isArray(meta.gallery)) gallery = meta.gallery;
+                            } catch (e) {}
+                            caption = caption.replace(/<!--dnl:.*?-->/g, '').trim();
+                        }
+
                         const formatted = {
                             ...dbArt,
                             section: this.normalizeSection(dbArt.section),
-                            headline: (dbArt.headline || '').trim(),
-                            standfirst: (dbArt.standfirst || '').trim(),
-                            body: dbArt.body || '',
-                            author_name: dbArt.author_name || 'SYED WAJID',
-                            image_caption: dbArt.image_caption || '',
-                            image_layout: dbArt.image_layout || 'top',
-                            is_breaking: !!dbArt.is_breaking,
+                            headline: (dbArt.headline || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim(),
+                            standfirst: (dbArt.standfirst || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim(),
+                            body: (dbArt.body || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' '),
+                            author_name: (dbArt.author_name || '').replace(/\u00a0/g, ' ').replace(/&nbsp;/gi, ' ').trim() || 'SYED WAJID',
+                            image_caption: caption,
+                            image_layout: layout || 'top',
+                            is_breaking: !!breaking,
                             published: typeof dbArt.published === 'boolean' ? dbArt.published : true,
-                            views: parseInt(dbArt.views, 10) || 0,
-                            gallery_images: Array.isArray(dbArt.gallery_images) ? dbArt.gallery_images : []
+                            views: parseInt(views, 10) || 0,
+                            gallery_images: Array.isArray(gallery) ? gallery.filter(Boolean) : []
                         };
                         const idx = articles.findIndex(a => a.id === formatted.id);
                         if (idx !== -1) {
@@ -1056,7 +1131,7 @@ class DataStore {
                         }
                     });
                     try {
-                        localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+                        this.storageSet(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
                     } catch (e) {}
                     return this.getArticleBySlug(slug);
                 }
@@ -1113,33 +1188,45 @@ class DataStore {
         if (!articleId) return;
         try {
             const sessionKey = 'dnl_view_' + articleId;
-            if (typeof sessionStorage !== 'undefined' && sessionStorage) {
-                if (sessionStorage.getItem(sessionKey)) return;
-                sessionStorage.setItem(sessionKey, '1');
-            }
-        } catch (storageErr) {
-            // Private mode or restricted in-app browser safe fallback
-        }
-
-        try {
-            const articles = this.getArticles();
-            const target = articles.find(a => a.id === articleId || a.slug === articleId);
-            if (!target) return;
-
-            target.views = (parseInt(target.views, 10) || 0) + 1;
             try {
-                localStorage.setItem(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
-            } catch (e) {}
-        } catch (e) {}
+                if (typeof sessionStorage !== 'undefined' && sessionStorage) {
+                    if (sessionStorage.getItem(sessionKey)) return;
+                    sessionStorage.setItem(sessionKey, '1');
+                }
+            } catch (storageErr) {
+                // Private mode or restricted in-app browser safe fallback
+            }
 
-        if (this.supabase) {
-            this.supabase
-                .from('articles')
-                .update({ views: target.views })
-                .eq('id', target.id)
-                .then(({ error }) => {
-                    if (error) console.warn('⚠️ Supabase view count sync note:', error.message);
-                });
+            let updatedViews = null;
+            let targetId = null;
+
+            try {
+                const articles = this.getArticles();
+                const targetArt = articles.find(a => a.id === articleId || a.slug === articleId);
+                if (targetArt) {
+                    targetArt.views = (parseInt(targetArt.views, 10) || 0) + 1;
+                    updatedViews = targetArt.views;
+                    targetId = targetArt.id;
+                    this.storageSet(this.STORAGE_KEY_ARTICLES, JSON.stringify(articles));
+                }
+            } catch (e) {
+                console.warn('⚠️ Local article view recording note:', e);
+            }
+
+            if (this.supabase && targetId && updatedViews !== null) {
+                this.supabase
+                    .from('articles')
+                    .update({ views: updatedViews })
+                    .eq('id', targetId)
+                    .then(({ error }) => {
+                        if (error) console.warn('⚠️ Supabase view count sync note:', error.message);
+                    })
+                    .catch(err => {
+                        console.warn('⚠️ Supabase view count sync failed:', err);
+                    });
+            }
+        } catch (outerErr) {
+            console.warn('⚠️ recordArticleView caught error:', outerErr);
         }
     }
 
